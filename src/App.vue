@@ -128,7 +128,8 @@ const buildSegments = (endBoundary: Date): Segment[] => {
   }
 
   if (currentCategory && end > cursor) {
-    segmentsList.push({ category: currentCategory, start: cursor, end })
+    segmentsList.push({ category: currentCategory, start: cursor, end: new Date() })
+    segmentsList.push({ category: currentCategory, start: new Date(), end })
   }
   return segmentsList
 }
