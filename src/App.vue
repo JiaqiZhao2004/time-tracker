@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import Header from './components/Header.vue'
 import Buttons from './components/Buttons.vue'
 import Timeline from './components/Timeline.vue'
+import Timer from './components/Timer.vue'
 import { todayLocalStart } from './utils/dateUtils'
 import { fetchEntriesLocal, postEntry, type Entry } from './services/api'
 
@@ -195,6 +196,8 @@ onUnmounted(() => {
       :isLoading="isLoading"
       :errorMessage="errorMessage"
     />
+
+    <Timer :segments="segments" :categories="categories" :now="now" />
   </div>
 </template>
 
