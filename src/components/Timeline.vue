@@ -131,7 +131,7 @@ const segmentStyle = (segment: Segment) => {
 }
 
 .segment:last-child {
-  opacity: 0.5;
+  opacity: 0.2;
 }
 
 .empty {
