@@ -18,20 +18,6 @@ export type EntriesLocalResponse = {
 const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000'
 
 /**
- * Fetches entries from the API for a given date range
- */
-export const fetchEntries = async (start: string, end: string): Promise<Entry[]> => {
-  const params = new URLSearchParams({ start, end })
-  const response = await fetch(`${API_BASE}/entries?${params.toString()}`)
-  
-  if (!response.ok) {
-    throw new Error('Failed to load entries')
-  }
-  
-  return response.json()
-}
-
-/**
  * Posts a new category entry to the API
  */
 export const postEntry = async (category: Category, timestamp: string): Promise<Entry> => {
