@@ -12,7 +12,7 @@ type Segment = {
 const props = defineProps<{
   segments: Segment[]
   categories: Array<{ key: Category; label: string; color: string }>
-  now: Date
+  end: Date
 }>()
 
 /**
@@ -31,7 +31,7 @@ const categoryTimes = computed(() => {
   }
 
   for (const segment of props.segments) {
-    const endTime = segment.end > props.now ? props.now : segment.end
+    const endTime = segment.end > props.end ? props.end : segment.end
     const duration = endTime.getTime() - segment.start.getTime()
     if (duration > 0) {
       times[segment.category] = (times[segment.category] || 0) + duration

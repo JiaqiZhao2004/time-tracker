@@ -36,6 +36,14 @@ const emit = defineEmits<{
   margin: 2rem 0;
 }
 
+@media (max-width: 768px) {
+  .controls {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.6rem;
+    margin: 1.5rem 0;
+  }
+}
+
 .last-selection {
   grid-column: 1 / -1;
   margin: 0.5rem 0 0;
@@ -52,6 +60,13 @@ const emit = defineEmits<{
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+}
+
+@media (max-width: 768px) {
+  .category-button {
+    padding: 0.75rem 0.5rem;
+    font-size: 0.9rem;
+  }
 }
 
 .category-button:hover {
