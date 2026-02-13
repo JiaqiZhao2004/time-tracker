@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field, field_validator
+from pydantic import AwareDatetime, BaseModel, Field, field_validator
 from sqlmodel import Field as SQLField
 from sqlmodel import Session, SQLModel, create_engine, select, col
 
@@ -25,26 +25,23 @@ class Category(str, Enum):
 
 class EntryCreate(BaseModel):
     category: Category
-    timestamp: datetime = Field(..., description="UTC timestamp in ISO 8601")
+    timestamp: AwareDatetime = Field(..., description="RFC 3339 datetime with timezone")
 
     @field_validator("timestamp")
     @classmethod
-    def ensure_utc(cls, value: datetime) -> datetime:
-        if value.tzinfo is None:
-            raise ValueError("timestamp must be timezone-aware (UTC)")
+    def ensure_utc(cls, value: AwareDatetime) -> AwareDatetime:
+        # AwareDatetime already ensures timezone-awareness
         return value.astimezone(UTC)
 
 
 class EntryRead(BaseModel):
     id: int
     category: Category
-    timestamp: datetime
+    timestamp: AwareDatetime
 
-    class Config:
-        from_attributes = True
-        json_encoders = {
-            datetime: lambda v: v.astimezone(UTC).isoformat().replace("+00:00", "Z")
-        }
+    model_config = {
+        "from_attributes": True,
+    }
 
 
 class EntriesLocalResponse(BaseModel):
@@ -75,7 +72,7 @@ app = FastAPI(title="Time Tracker API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["http://localhost:5173", "http://localhost:5174"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -120,14 +117,11 @@ def create_entry(payload: EntryCreate) -> EntryRead:
 
 @app.get("/entries", response_model=List[EntryRead])
 def list_entries(
-    start: datetime | None = None, end: datetime | None = None
+    start: AwareDatetime | None = None, end: AwareDatetime | None = None
 ) -> List[EntryRead]:
     if start is None or end is None:
         raise HTTPException(status_code=400, detail="start and end are required")
-    if start.tzinfo is None or end.tzinfo is None:
-        raise HTTPException(
-            status_code=400, detail="start and end must be timezone-aware"
-        )
+    # AwareDatetime already ensures timezone-awareness, no need to check
 
     start_utc = start.astimezone(UTC)
     end_utc = end.astimezone(UTC)
