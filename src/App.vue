@@ -155,6 +155,9 @@ const goToToday = () => {
 const shiftDay = (direction: -1 | 1) => {
   const next = new Date(dayStart.value)
   next.setDate(next.getDate() + direction)
+  if (next > todayLocalStart()) {
+    return
+  }
   dayStart.value = next
   fetchEntriesForLocalDay()
 }
@@ -197,7 +200,7 @@ onUnmounted(() => {
       :errorMessage="errorMessage"
     />
 
-    <Timer :segments="segments" :categories="categories" :now="now" />
+    <Timer :segments="segments" :categories="categories" :end="dayEnd < now ? dayEnd : now" />
   </div>
 </template>
 

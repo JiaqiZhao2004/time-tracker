@@ -81,6 +81,13 @@ const segmentStyle = (segment: Segment) => {
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
 }
 
+@media (max-width: 768px) {
+  .timeline {
+    padding: 1rem;
+    border-radius: 12px;
+  }
+}
+
 .timeline-header {
   display: flex;
   justify-content: space-between;
@@ -150,6 +157,13 @@ const segmentStyle = (segment: Segment) => {
   margin-top: 1.2rem;
   color: #cbd0da;
   font-size: 0.9rem;
+}
+
+@media (max-width: 768px) {
+  .timeline-legend {
+    gap: 0.6rem;
+    font-size: 0.8rem;
+  }
 }
 
 .legend-item {

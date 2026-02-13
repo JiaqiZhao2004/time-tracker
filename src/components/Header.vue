@@ -11,7 +11,7 @@ const emit = defineEmits<{
 
 <template>
   <header class="header">
-    <div>
+    <div class="title">
       <h1>Time Tracker</h1>
       <p>UTC-backed, local-day timeline</p>
     </div>
@@ -33,9 +33,22 @@ const emit = defineEmits<{
   align-items: center;
 }
 
+.header .title {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
+}
+
 .header h1 {
   margin: 0;
   font-size: 2.2rem;
+}
+
+@media (max-width: 768px) {
+  .header h1 {
+    font-size: 1.8rem;
+  }
 }
 
 .header p {
