@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import Header from './components/Header.vue'
 import Buttons from './components/Buttons.vue'
+import ManualEntry from './components/ManualEntry.vue'
 import Timeline from './components/Timeline.vue'
 import Timer from './components/Timer.vue'
 import { todayLocalStart } from './utils/dateUtils'
@@ -106,6 +107,15 @@ const logCategory = async (category: Category) => {
   }
 }
 
+const handleEntryCreated = async (entry: Entry) => {
+  if (!entries.value.some((e) => e.id === entry.id)) {
+    entries.value = [...entries.value, entry].sort(
+      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    )
+  }
+  await fetchEntriesForLocalDay()
+}
+
 const buildSegments = (endBoundary: Date): Segment[] => {
   const augmented = [...entries.value]
 
@@ -189,6 +199,8 @@ onUnmounted(() => {
     <Header :dayLabel="dayLabel" @shiftDay="shiftDay" @goToToday="goToToday" />
 
     <Buttons :categories="categories" :lastCategory="lastCategory" @logCategory="logCategory" />
+
+    <ManualEntry :categories="categories" @entryCreated="handleEntryCreated" />
 
     <Timeline
       :segments="segments"
