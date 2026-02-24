@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 type Category = 'coursework' | 'work' | 'prayer' | 'rest' | 'social' | 'family' | 'self-study' | 'chores'
 
@@ -41,6 +41,27 @@ const segmentStyle = (segment: Segment) => {
     backgroundColor: color,
   }
 }
+
+const tooltipVisible = ref(false)
+const tooltipLeft = ref(0)
+const tooltipTime = ref('')
+
+const handleMouseMove = (e: MouseEvent) => {
+  const bar = e.currentTarget as HTMLElement
+  const rect = bar.getBoundingClientRect()
+  const x = Math.min(rect.width, Math.max(0, e.clientX - rect.left))
+  const pct = x / rect.width
+  const timeAtCursor = new Date(props.dayStart.getTime() + pct * totalDayMs.value)
+  const hh = timeAtCursor.getHours().toString().padStart(2, '0')
+  const mm = timeAtCursor.getMinutes().toString().padStart(2, '0')
+  tooltipTime.value = `${hh}:${mm}`
+  tooltipLeft.value = x
+  tooltipVisible.value = true
+}
+
+const handleMouseLeave = () => {
+  tooltipVisible.value = false
+}
 </script>
 
 <template>
@@ -49,19 +70,24 @@ const segmentStyle = (segment: Segment) => {
       <h2>Daily Timeline</h2>
       <span v-if="isLoading">Loading...</span>
     </div>
-    <div class="timeline-bar">
-      <div class="hour-marks">
-        <div v-for="mark in hourMarks" :key="mark.label" class="hour-mark" :style="{ left: mark.left }">
-          <span class="hour-label">{{ mark.label }}</span>
+    <div class="timeline-bar" @mousemove="handleMouseMove" @mouseleave="handleMouseLeave">
+      <div class="timeline-bar-track">
+        <div class="hour-marks">
+          <div v-for="mark in hourMarks" :key="mark.label" class="hour-mark" :style="{ left: mark.left }">
+            <span class="hour-label">{{ mark.label }}</span>
+          </div>
         </div>
+        <div
+          v-for="(segment, index) in segments"
+          :key="`${segment.category}-${index}`"
+          class="segment"
+          :style="segmentStyle(segment)"
+        />
+        <div v-if="segments.length === 0" class="empty">No entries yet</div>
       </div>
-      <div
-        v-for="(segment, index) in segments"
-        :key="`${segment.category}-${index}`"
-        class="segment"
-        :style="segmentStyle(segment)"
-      />
-      <div v-if="segments.length === 0" class="empty">No entries yet</div>
+      <div v-if="tooltipVisible" class="timeline-tooltip" :style="{ left: tooltipLeft + 'px' }">
+        {{ tooltipTime }}
+      </div>
     </div>
     <div class="timeline-legend">
       <div v-for="item in categories" :key="item.key" class="legend-item">
@@ -98,9 +124,44 @@ const segmentStyle = (segment: Segment) => {
 .timeline-bar {
   position: relative;
   height: 32px;
+  overflow: visible;
+  cursor: crosshair;
+}
+
+.timeline-bar-track {
+  position: absolute;
+  inset: 0;
   background: #0b0d14;
   border-radius: 999px;
   overflow: hidden;
+}
+
+.timeline-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  background: #1a1d23;
+  border: 1px solid #3a3d4a;
+  border-radius: 7px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #f5f5f5;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 10;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  letter-spacing: 0.03em;
+}
+
+.timeline-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #3a3d4a;
 }
 
 .hour-marks {
