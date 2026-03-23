@@ -24,6 +24,10 @@ const props = defineProps<{
   errorMessage: string
 }>()
 
+const emit = defineEmits<{
+  timeClick: [date: Date]
+}>()
+
 /**
  * Component-specific function: calculates style for timeline segments
  */
@@ -62,6 +66,15 @@ const handleMouseMove = (e: MouseEvent) => {
 const handleMouseLeave = () => {
   tooltipVisible.value = false
 }
+
+const handleClick = (e: MouseEvent) => {
+  const bar = e.currentTarget as HTMLElement
+  const rect = bar.getBoundingClientRect()
+  const x = Math.min(rect.width, Math.max(0, e.clientX - rect.left))
+  const pct = x / rect.width
+  const timeAtCursor = new Date(props.dayStart.getTime() + pct * totalDayMs.value)
+  emit('timeClick', timeAtCursor)
+}
 </script>
 
 <template>
@@ -70,7 +83,7 @@ const handleMouseLeave = () => {
       <h2>Daily Timeline</h2>
       <span v-if="isLoading">Loading...</span>
     </div>
-    <div class="timeline-bar" @mousemove="handleMouseMove" @mouseleave="handleMouseLeave">
+    <div class="timeline-bar" @mousemove="handleMouseMove" @mouseleave="handleMouseLeave" @click="handleClick">
       <div class="timeline-bar-track">
         <div class="hour-marks">
           <div v-for="mark in hourMarks" :key="mark.label" class="hour-mark" :style="{ left: mark.left }">

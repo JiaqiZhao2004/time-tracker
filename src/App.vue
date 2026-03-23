@@ -39,6 +39,7 @@ const dayStartCategory = ref<Category | null>(null)
 const lastCategory = ref<Category | null>(null)
 const lastTimestamp = ref<string | null>(null)
 const now = ref(new Date())
+const manualEntryDatetime = ref<Date | undefined>(undefined)
 let tickerId: number | undefined
 
 const dayStart = ref(todayLocalStart())
@@ -114,6 +115,10 @@ const handleEntryCreated = async (entry: Entry) => {
     )
   }
   await fetchEntriesForLocalDay()
+}
+
+const handleTimeClick = (date: Date) => {
+  manualEntryDatetime.value = date
 }
 
 const buildSegments = (endBoundary: Date): Segment[] => {
@@ -200,7 +205,7 @@ onUnmounted(() => {
 
     <Buttons :categories="categories" :lastCategory="lastCategory" @logCategory="logCategory" />
 
-    <ManualEntry :categories="categories" @entryCreated="handleEntryCreated" />
+    <ManualEntry :categories="categories" :initialDatetime="manualEntryDatetime" @entryCreated="handleEntryCreated" />
 
     <Timeline
       :segments="segments"
@@ -210,6 +215,7 @@ onUnmounted(() => {
       :dayEnd="dayEnd"
       :isLoading="isLoading"
       :errorMessage="errorMessage"
+      @timeClick="handleTimeClick"
     />
 
     <Timer :segments="segments" :categories="categories" :end="dayEnd < now ? dayEnd : now" />

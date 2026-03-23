@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { postEntry, type Entry } from '../services/api'
 
 type Category = 'coursework' | 'work' | 'prayer' | 'rest' | 'social' | 'family' | 'self-study' | 'chores'
 
 const props = defineProps<{
   categories: Array<{ key: Category; label: string; color: string }>
+  initialDatetime?: Date
 }>()
 
 const emit = defineEmits<{
@@ -25,6 +26,12 @@ const successMessage = ref('')
 
 const selectedColor = () =>
   props.categories.find((c) => c.key === selectedCategory.value)?.color ?? '#6c63ff'
+
+watch(() => props.initialDatetime, (newDate) => {
+  if (newDate) {
+    selectedDatetime.value = toLocalInputValue(newDate)
+  }
+})
 
 const handleSubmit = async () => {
   if (!selectedCategory.value || !selectedDatetime.value) return
