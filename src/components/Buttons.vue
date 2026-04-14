@@ -1,5 +1,5 @@
 <script setup lang="ts">
-type Category = 'coursework' | 'work' | 'prayer' | 'rest' | 'social' | 'family' | 'self-study' | 'chores'
+import type { Category } from '../types/category'
 
 defineProps<{
   categories: Array<{ key: Category; label: string; color: string }>

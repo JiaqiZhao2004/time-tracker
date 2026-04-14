@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { postEntry, type Entry } from '../services/api'
-
-type Category = 'coursework' | 'work' | 'prayer' | 'rest' | 'social' | 'family' | 'self-study' | 'chores'
+import type { Category } from '../types/category'
 
 const props = defineProps<{
   categories: Array<{ key: Category; label: string; color: string }>
