@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-
-type Category = 'coursework' | 'work' | 'prayer' | 'rest' | 'social' | 'family' | 'self-study' | 'chores'
+import type { Category } from '../types/category'
 
 type Segment = {
   category: Category
@@ -28,6 +27,7 @@ const categoryTimes = computed(() => {
     family: 0,
     'self-study': 0,
     chores: 0,
+    exercise: 0,
   }
 
   for (const segment of props.segments) {

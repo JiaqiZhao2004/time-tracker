@@ -1,0 +1,10 @@
+export type Category =
+  | 'coursework'
+  | 'work'
+  | 'prayer'
+  | 'rest'
+  | 'social'
+  | 'family'
+  | 'self-study'
+  | 'chores'
+  | 'exercise'

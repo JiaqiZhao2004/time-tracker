@@ -14,7 +14,7 @@ A modern, cloud-native time tracking application built with a serverless archite
 ## Features
 
 ### Core Functionality
-- **One-click time tracking** across eight life categories: coursework, work, prayer, rest, social, family, chores, self-study
+- **One-click time tracking** across nine life categories: coursework, work, prayer, rest, social, family, chores, self-study, exercise
 - **Interactive timeline visualization** showing daily activity distribution
 - **Local timezone support** with UTC-backed storage for data consistency
 - **Real-time updates** with optimistic UI patterns

@@ -7,8 +7,7 @@ import Timeline from './components/Timeline.vue'
 import Timer from './components/Timer.vue'
 import { todayLocalStart } from './utils/dateUtils'
 import { fetchEntriesLocal, postEntry, type Entry } from './services/api'
-
-type Category = 'coursework' | 'work' | 'prayer' | 'rest' | 'social' | 'family' | 'self-study' | 'chores'
+import type { Category } from './types/category'
 
 type Segment = {
   category: Category
@@ -30,6 +29,7 @@ const categories: Array<{ key: Category; label: string; color: string }> = [
   { key: 'family', label: 'Family', color: '#d63031' },
   { key: 'self-study', label: 'Self Study', color: '#a29bfe' },
   { key: 'chores', label: 'Chores', color: '#fd79a8' },
+  { key: 'exercise', label: 'Exercise', color: '#00cec9' },
 ]
 
 const entries = ref<Entry[]>([])

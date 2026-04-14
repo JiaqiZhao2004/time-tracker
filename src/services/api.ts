@@ -1,8 +1,7 @@
 /**
  * API service functions for fetching and posting time tracker entries
  */
-
-type Category = 'coursework' | 'work' | 'prayer' | 'rest' | 'social' | 'family' | 'self-study' | 'chores'
+import type { Category } from '../types/category'
 
 export type Entry = {
   id: number
