@@ -21,11 +21,14 @@ jobs:
         with:
           node-version: "20"
           cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install
+        working-directory: frontend
         run: npm ci
 
       - name: Build
+        working-directory: frontend
         env:
           VITE_API_BASE: https://n1ac8svagd.execute-api.us-east-2.amazonaws.com
         run: npm run build
@@ -39,7 +42,7 @@ jobs:
 
       - name: Sync to S3
         run: |
-          aws s3 sync ./dist s3://time-tracker-frontend-jiaqizhao2004/ --delete
+          aws s3 sync ./frontend/dist s3://time-tracker-frontend-jiaqizhao2004/ --delete
 
       # Optional: CloudFront cache invalidation
       - name: Invalidate CloudFront

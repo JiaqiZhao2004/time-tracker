@@ -32,6 +32,13 @@ A modern, cloud-native time tracking application built with a serverless archite
 - **Vue 3** with TypeScript
 - **Modular component architecture** for maintainability
 
+Frontend source lives in `frontend/`.
+
+```bash
+cd frontend
+VITE_API_BASE=http://localhost:8000 npm run dev
+```
+
 ### Backend & Infrastructure
 - **AWS Lambda**: Serverless compute with Python runtime
 - **API Gateway**: RESTful API endpoint management with CORS support
