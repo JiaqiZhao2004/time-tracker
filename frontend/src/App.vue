@@ -6,11 +6,11 @@ import ManualEntry from './components/ManualEntry.vue'
 import Timeline from './components/Timeline.vue'
 import Timer from './components/Timer.vue'
 import { todayLocalStart } from './utils/dateUtils'
-import { fetchEntriesLocal, postEntry, type Entry } from './services/api'
-import type { Category } from './types/category'
+import { fetchCategories, fetchEntriesLocal, postEntry, type EntriesLocalResponse, type Entry } from './services/api'
+import { displayCategory, type DisplayCategory } from './types/category'
 
 type Segment = {
-  category: Category
+  categoryId: string
   start: Date
   end: Date
 }
@@ -20,23 +20,12 @@ type HourMark = {
   left: string
 }
 
-const categories: Array<{ key: Category; label: string; color: string }> = [
-  { key: 'coursework', label: 'Coursework', color: '#6c63ff' },
-  { key: 'work', label: 'Work', color: '#00b894' },
-  { key: 'prayer', label: 'Prayer', color: '#fdcb6e' },
-  { key: 'rest', label: 'Rest', color: '#0984e3' },
-  { key: 'social', label: 'Social', color: '#e17055' },
-  { key: 'family', label: 'Family', color: '#d63031' },
-  { key: 'self-study', label: 'Self Study', color: '#a29bfe' },
-  { key: 'chores', label: 'Chores', color: '#fd79a8' },
-  { key: 'exercise', label: 'Exercise', color: '#00cec9' },
-]
-
+const categories = ref<DisplayCategory[]>([])
 const entries = ref<Entry[]>([])
 const isLoading = ref(false)
 const errorMessage = ref('')
-const dayStartCategory = ref<Category | null>(null)
-const lastCategory = ref<Category | null>(null)
+const dayStartCategoryId = ref<string | null>(null)
+const lastCategoryId = ref<string | null>(null)
 const lastTimestamp = ref<string | null>(null)
 const now = ref(new Date())
 const manualEntryDatetime = ref<Date | undefined>(undefined)
@@ -50,6 +39,44 @@ const dayEnd = computed(() => {
 })
 
 const dayLabel = computed(() => dayStart.value.toLocaleDateString())
+const activeCategories = computed(() => categories.value.filter((category) => category.isActive))
+
+const displayCategories = computed<DisplayCategory[]>(() => {
+  const indexed = new Map(
+    categories.value.map((category) => [category.categoryId, category]),
+  )
+
+  for (const entry of entries.value) {
+    const storedCategory = indexed.get(entry.categoryId)
+    indexed.set(
+      entry.categoryId,
+      displayCategory({
+        categoryId: entry.categoryId,
+        name: entry.categoryNameSnapshot,
+        isActive: storedCategory?.isActive ?? false,
+      }),
+    )
+  }
+
+  if (dayStartCategoryId.value && !indexed.has(dayStartCategoryId.value)) {
+    indexed.set(
+      dayStartCategoryId.value,
+      displayCategory({
+        categoryId: dayStartCategoryId.value,
+        name: dayStartCategoryId.value,
+        isActive: false,
+      }),
+    )
+  }
+
+  return [...indexed.values()].sort(
+    (left, right) => left.name.localeCompare(right.name) || left.categoryId.localeCompare(right.categoryId),
+  )
+})
+
+const lastCategory = computed(
+  () => displayCategories.value.find((category) => category.categoryId === lastCategoryId.value) ?? null,
+)
 
 const updateLastFromEntries = (list: Entry[]) => {
   if (list.length === 0) {
@@ -57,11 +84,17 @@ const updateLastFromEntries = (list: Entry[]) => {
   }
   const latest = [...list].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0]
   if (latest) {
-    lastCategory.value = latest.category
+    lastCategoryId.value = latest.categoryId
     lastTimestamp.value = latest.timestamp
-    localStorage.setItem('lastCategory', latest.category)
+    localStorage.setItem('lastCategoryId', latest.categoryId)
     localStorage.setItem('lastTimestamp', latest.timestamp)
   }
+}
+
+const applyEntries = (data: EntriesLocalResponse) => {
+  entries.value = data.entries
+  dayStartCategoryId.value = data.prevEntryCategoryId
+  updateLastFromEntries(data.entries)
 }
 
 const fetchEntriesForLocalDay = async () => {
@@ -73,12 +106,7 @@ const fetchEntriesForLocalDay = async () => {
 
   try {
     const data = await fetchEntriesLocal(timezone, dateStr!)
-    entries.value = data.entries
-    console.log('Fetched entries:', data)
-    if (data.prevEntryCategory) {
-      dayStartCategory.value = data.prevEntryCategory
-    }
-    updateLastFromEntries(data.entries)
+    applyEntries(data)
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'Failed to load entries'
   } finally {
@@ -86,16 +114,37 @@ const fetchEntriesForLocalDay = async () => {
   }
 }
 
-const logCategory = async (category: Category) => {
+const loadInitialData = async () => {
+  isLoading.value = true
   errorMessage.value = ''
-  if (lastCategory.value === category) {
+
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  const dateStr = dayStart.value.toISOString().split('T')[0]
+
+  try {
+    const [availableCategories, data] = await Promise.all([
+      fetchCategories(),
+      fetchEntriesLocal(timezone, dateStr!),
+    ])
+    categories.value = availableCategories.map(displayCategory)
+    applyEntries(data)
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'Failed to load data'
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const logCategory = async (categoryId: string) => {
+  errorMessage.value = ''
+  if (lastCategoryId.value === categoryId) {
     return
   }
   try {
-    const created = await postEntry(category, new Date().toISOString())
-    lastCategory.value = created.category
+    const created = await postEntry(categoryId, new Date().toISOString())
+    lastCategoryId.value = created.categoryId
     lastTimestamp.value = created.timestamp
-    localStorage.setItem('lastCategory', created.category)
+    localStorage.setItem('lastCategoryId', created.categoryId)
     localStorage.setItem('lastTimestamp', created.timestamp)
     if (!entries.value.some((entry) => entry.id === created.id)) {
       entries.value = [...entries.value, created].sort(
@@ -132,25 +181,35 @@ const buildSegments = (endBoundary: Date): Segment[] => {
   const end = endBoundary
   const segmentsList: Segment[] = []
 
-  let currentCategory: Category = dayStartCategory.value || 'rest'
+  let currentCategoryId = dayStartCategoryId.value
   let cursor = new Date(start)
 
   for (const item of sorted) {
-    if (item.date > cursor) {
-      segmentsList.push({ category: currentCategory, start: cursor, end: item.date })
+    if (currentCategoryId && item.date > cursor) {
+      segmentsList.push({ categoryId: currentCategoryId, start: cursor, end: item.date })
     }
-    currentCategory = item.category
+    currentCategoryId = item.categoryId
     cursor = item.date
   }
 
-  if (currentCategory && end > cursor) {
-    segmentsList.push({ category: currentCategory, start: cursor, end: new Date() })
-    segmentsList.push({ category: currentCategory, start: new Date(), end })
+  if (currentCategoryId && end > cursor) {
+    const currentTime = new Date()
+    const trackedEnd = currentTime > cursor && currentTime < end ? currentTime : end
+    segmentsList.push({ categoryId: currentCategoryId, start: cursor, end: trackedEnd })
+    if (trackedEnd < end) {
+      segmentsList.push({ categoryId: currentCategoryId, start: trackedEnd, end })
+    }
   }
   return segmentsList
 }
 
 const segments = computed<Segment[]>(() => buildSegments(dayEnd.value))
+const timelineCategories = computed(() => {
+  const usedCategoryIds = new Set(segments.value.map((segment) => segment.categoryId))
+  return displayCategories.value.filter(
+    (category) => category.isActive || usedCategoryIds.has(category.categoryId),
+  )
+})
 
 const hourMarks = computed<HourMark[]>(() => {
   const marks: HourMark[] = []
@@ -178,15 +237,15 @@ const shiftDay = (direction: -1 | 1) => {
 }
 
 onMounted(() => {
-  const stored = localStorage.getItem('lastCategory') as Category | null
-  if (stored && categories.some((item) => item.key === stored)) {
-    lastCategory.value = stored
+  const storedCategoryId = localStorage.getItem('lastCategoryId')
+  if (storedCategoryId) {
+    lastCategoryId.value = storedCategoryId
   }
   const storedTimestamp = localStorage.getItem('lastTimestamp')
   if (storedTimestamp) {
     lastTimestamp.value = storedTimestamp
   }
-  fetchEntriesForLocalDay()
+  loadInitialData()
   tickerId = window.setInterval(() => {
     now.value = new Date()
   }, 1000)
@@ -203,14 +262,14 @@ onUnmounted(() => {
   <div class="app">
     <Header :dayLabel="dayLabel" @shiftDay="shiftDay" @goToToday="goToToday" />
 
-    <Buttons :categories="categories" :lastCategory="lastCategory" @logCategory="logCategory" />
+    <Buttons :categories="activeCategories" :lastCategory="lastCategory" @logCategory="logCategory" />
 
-    <ManualEntry :categories="categories" :initialDatetime="manualEntryDatetime" @entryCreated="handleEntryCreated" />
+    <ManualEntry :categories="activeCategories" :initialDatetime="manualEntryDatetime" @entryCreated="handleEntryCreated" />
 
     <Timeline
       :segments="segments"
       :hourMarks="hourMarks"
-      :categories="categories"
+      :categories="timelineCategories"
       :dayStart="dayStart"
       :dayEnd="dayEnd"
       :isLoading="isLoading"
@@ -218,7 +277,7 @@ onUnmounted(() => {
       @timeClick="handleTimeClick"
     />
 
-    <Timer :segments="segments" :categories="categories" :end="dayEnd < now ? dayEnd : now" />
+    <Timer :segments="segments" :categories="displayCategories" :end="dayEnd < now ? dayEnd : now" />
   </div>
 </template>
 

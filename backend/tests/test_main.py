@@ -12,7 +12,7 @@ from backend.main import app
 
 class FakeTable:
     def __init__(self) -> None:
-        self.category: dict[str, Any] | None = {"name": "Research"}
+        self.category: dict[str, Any] | None = {"name": "Research", "isActive": True}
         self.query_responses: list[dict[str, Any]] = []
         self.put_items: list[dict[str, Any]] = []
         self.raise_client_error = False
@@ -66,6 +66,56 @@ def entry(
     }
 
 
+def category(category_id: str, name: str, is_active: bool = True) -> dict[str, Any]:
+    return {
+        "PK": "USER#student",
+        "SK": f"CATEGORY#{category_id}",
+        "entityType": "Category",
+        "categoryId": category_id,
+        "name": name,
+        "isActive": is_active,
+        "schemaVersion": 2,
+    }
+
+
+def test_categories_return_active_and_inactive_records_alphabetically(
+    api: tuple[TestClient, FakeTable],
+) -> None:
+    client, table = api
+    table.query_responses = [
+        {
+            "Items": [
+                category("work", "Work"),
+                category("rest", "Rest", is_active=False),
+                category("alpha-2", "Alpha"),
+                category("alpha-1", "Alpha"),
+            ]
+        }
+    ]
+
+    response = client.get("/categories", params={"user_id": "student"})
+
+    assert response.status_code == 200
+    assert response.json() == [
+        {"categoryId": "alpha-1", "name": "Alpha", "isActive": True},
+        {"categoryId": "alpha-2", "name": "Alpha", "isActive": True},
+        {"categoryId": "rest", "name": "Rest", "isActive": False},
+        {"categoryId": "work", "name": "Work", "isActive": True},
+    ]
+
+
+def test_categories_return_server_error_on_dynamodb_failure(
+    api: tuple[TestClient, FakeTable],
+) -> None:
+    client, table = api
+    table.raise_client_error = True
+
+    response = client.get("/categories", params={"user_id": "student"})
+
+    assert response.status_code == 500
+    assert "DynamoDB error" in response.json()["detail"]
+
+
 def test_create_entry_saves_v2_item_in_utc(api: tuple[TestClient, FakeTable]) -> None:
     client, table = api
 
@@ -104,6 +154,24 @@ def test_create_entry_rejects_missing_category(api: tuple[TestClient, FakeTable]
 
     assert response.status_code == 400
     assert "does not exist" in response.json()["detail"]
+    assert table.put_items == []
+
+
+def test_create_entry_rejects_inactive_category(api: tuple[TestClient, FakeTable]) -> None:
+    client, table = api
+    table.category = {"name": "Archived", "isActive": False}
+
+    response = client.post(
+        "/entries",
+        json={
+            "user_id": "student",
+            "categoryId": "archived",
+            "timestamp": "2024-01-02T09:00:00Z",
+        },
+    )
+
+    assert response.status_code == 400
+    assert "inactive" in response.json()["detail"]
     assert table.put_items == []
 
 

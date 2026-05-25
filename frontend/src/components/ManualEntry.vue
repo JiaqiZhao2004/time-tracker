@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { postEntry, type Entry } from '../services/api'
-import type { Category } from '../types/category'
+import type { DisplayCategory } from '../types/category'
 
 const props = defineProps<{
-  categories: Array<{ key: Category; label: string; color: string }>
+  categories: DisplayCategory[]
   initialDatetime?: Date
 }>()
 
@@ -17,14 +17,24 @@ const toLocalInputValue = (date: Date): string => {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
-const selectedCategory = ref<Category>(props.categories[0]?.key ?? 'rest')
+const selectedCategoryId = ref('')
 const selectedDatetime = ref(toLocalInputValue(new Date()))
 const isSubmitting = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
 
 const selectedColor = () =>
-  props.categories.find((c) => c.key === selectedCategory.value)?.color ?? '#6c63ff'
+  props.categories.find((category) => category.categoryId === selectedCategoryId.value)?.color ?? '#6c63ff'
+
+watch(
+  () => props.categories,
+  (categories) => {
+    if (!categories.some((category) => category.categoryId === selectedCategoryId.value)) {
+      selectedCategoryId.value = categories[0]?.categoryId ?? ''
+    }
+  },
+  { immediate: true },
+)
 
 watch(() => props.initialDatetime, (newDate) => {
   if (newDate) {
@@ -33,16 +43,16 @@ watch(() => props.initialDatetime, (newDate) => {
 })
 
 const handleSubmit = async () => {
-  if (!selectedCategory.value || !selectedDatetime.value) return
+  if (!selectedCategoryId.value || !selectedDatetime.value) return
   errorMessage.value = ''
   successMessage.value = ''
   isSubmitting.value = true
 
   try {
     const timestamp = new Date(selectedDatetime.value).toISOString()
-    const created = await postEntry(selectedCategory.value, timestamp)
+    const created = await postEntry(selectedCategoryId.value, timestamp)
     emit('entryCreated', created)
-    successMessage.value = `Entry saved: ${props.categories.find((c) => c.key === created.category)?.label ?? created.category}`
+    successMessage.value = `Entry saved: ${created.categoryNameSnapshot}`
     setTimeout(() => (successMessage.value = ''), 3000)
   } catch (err) {
     errorMessage.value = err instanceof Error ? err.message : 'Failed to save entry'
@@ -58,9 +68,9 @@ const handleSubmit = async () => {
       <div class="field">
         <label for="me-category">Category</label>
         <div class="select-wrapper" :style="{ '--accent': selectedColor() }">
-          <select id="me-category" v-model="selectedCategory">
-            <option v-for="cat in categories" :key="cat.key" :value="cat.key">
-              {{ cat.label }}
+          <select id="me-category" v-model="selectedCategoryId" :disabled="categories.length === 0">
+            <option v-for="cat in categories" :key="cat.categoryId" :value="cat.categoryId">
+              {{ cat.name }}
             </option>
           </select>
         </div>
@@ -71,7 +81,7 @@ const handleSubmit = async () => {
         <input id="me-datetime" type="datetime-local" v-model="selectedDatetime" />
       </div>
 
-      <button type="submit" class="submit-btn" :disabled="isSubmitting">
+      <button type="submit" class="submit-btn" :disabled="isSubmitting || categories.length === 0">
         {{ isSubmitting ? 'Saving…' : 'Add Entry' }}
       </button>
     </form>

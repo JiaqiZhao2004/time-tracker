@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import type { Category } from '../types/category'
+import type { DisplayCategory } from '../types/category'
 
 defineProps<{
-  categories: Array<{ key: Category; label: string; color: string }>
-  lastCategory: Category | null
+  categories: DisplayCategory[]
+  lastCategory: DisplayCategory | null
 }>()
 
 const emit = defineEmits<{
-  logCategory: [category: Category]
+  logCategory: [categoryId: string]
 }>()
 </script>
 
@@ -15,15 +15,15 @@ const emit = defineEmits<{
   <section class="controls">
     <button
       v-for="item in categories"
-      :key="item.key"
+      :key="item.categoryId"
       class="category-button"
       :style="{ backgroundColor: item.color }"
-      @click="emit('logCategory', item.key)"
+      @click="emit('logCategory', item.categoryId)"
     >
-      {{ item.label }}
+      {{ item.name }}
     </button>
     <p class="last-selection" v-if="lastCategory">
-      Last selection: {{ categories.find((item) => item.key === lastCategory)?.label ?? lastCategory }}
+      Last selection: {{ lastCategory.name }}
     </p>
   </section>
 </template>

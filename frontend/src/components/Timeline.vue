@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import type { Category } from '../types/category'
+import type { DisplayCategory } from '../types/category'
 
 type Segment = {
-  category: Category
+  categoryId: string
   start: Date
   end: Date
 }
@@ -16,7 +16,7 @@ type HourMark = {
 const props = defineProps<{
   segments: Segment[]
   hourMarks: HourMark[]
-  categories: Array<{ key: Category; label: string; color: string }>
+  categories: DisplayCategory[]
   dayStart: Date
   dayEnd: Date
   isLoading: boolean
@@ -37,7 +37,7 @@ const segmentStyle = (segment: Segment) => {
   const endOffset = Math.min(totalDayMs.value, segment.end.getTime() - props.dayStart.getTime())
   const left = (startOffset / totalDayMs.value) * 100
   const width = ((endOffset - startOffset) / totalDayMs.value) * 100
-  const color = props.categories.find((item) => item.key === segment.category)?.color ?? '#999'
+  const color = props.categories.find((item) => item.categoryId === segment.categoryId)?.color ?? '#999'
   return {
     left: `${left}%`,
     width: `${width}%`,
@@ -91,7 +91,7 @@ const handleClick = (e: MouseEvent) => {
         </div>
         <div
           v-for="(segment, index) in segments"
-          :key="`${segment.category}-${index}`"
+          :key="`${segment.categoryId}-${index}`"
           class="segment"
           :style="segmentStyle(segment)"
         />
@@ -102,9 +102,9 @@ const handleClick = (e: MouseEvent) => {
       </div>
     </div>
     <div class="timeline-legend">
-      <div v-for="item in categories" :key="item.key" class="legend-item">
+      <div v-for="item in categories" :key="item.categoryId" class="legend-item">
         <span class="legend-color" :style="{ backgroundColor: item.color }" />
-        {{ item.label }}
+        {{ item.name }}
       </div>
     </div>
     <p v-if="errorMessage" class="error">{{ errorMessage }}</p>

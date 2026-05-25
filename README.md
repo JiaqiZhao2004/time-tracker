@@ -58,6 +58,7 @@ python -m venv .venv
 
 Its v2 endpoints require user-scoped category IDs:
 
+- `GET /categories` accepts `user_id` and returns active and inactive category definitions.
 - `POST /entries` accepts `user_id`, `categoryId`, and a timezone-aware `timestamp`.
 - `GET /entries-local` accepts `user_id`, `timezone`, and `date` query parameters.
 

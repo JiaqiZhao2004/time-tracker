@@ -34,6 +34,12 @@ class EntryRead(BaseModel):
     timestamp: AwareDatetime
 
 
+class CategoryRead(BaseModel):
+    categoryId: str
+    name: str
+    isActive: bool
+
+
 class EntriesLocalResponse(BaseModel):
     prevEntryCategoryId: str | None = None
     entries: list[EntryRead]
@@ -54,7 +60,7 @@ app.add_middleware(
 def get_table() -> Any:
     """Return one cached DynamoDB table resource for application requests."""
     if app.state.table is None:
-        app.state.table = boto3.resource("dynamodb").Table(TABLE_NAME)
+        app.state.table = boto3.resource("dynamodb").Table(TABLE_NAME) # type: ignore
     return app.state.table
 
 
@@ -79,6 +85,14 @@ def entry_read_from_item(item: dict[str, Any]) -> EntryRead:
         categoryId=item["categoryId"],
         categoryNameSnapshot=item["categoryNameSnapshot"],
         timestamp=datetime_from_item(item),
+    )
+
+
+def category_read_from_item(item: dict[str, Any]) -> CategoryRead:
+    return CategoryRead(
+        categoryId=item["categoryId"],
+        name=item["name"],
+        isActive=item["isActive"],
     )
 
 
@@ -113,6 +127,22 @@ def dynamodb_failure(error: Exception) -> HTTPException:
     return HTTPException(status_code=500, detail=f"DynamoDB error: {error}")
 
 
+@app.get("/categories", response_model=list[CategoryRead])
+def get_categories(user_id: str = Query(..., min_length=1)) -> list[CategoryRead]:
+    try:
+        table = get_table()
+        items = query_all(
+            table,
+            KeyConditionExpression=Key("PK").eq(user_key(user_id))
+            & Key("SK").begins_with("CATEGORY#"),
+            ScanIndexForward=True,
+        )
+        categories = [category_read_from_item(item) for item in items]
+        return sorted(categories, key=lambda item: (item.name.casefold(), item.categoryId))
+    except (BotoCoreError, ClientError) as error:
+        raise dynamodb_failure(error) from error
+
+
 @app.post("/entries", response_model=EntryRead)
 def create_entry(payload: EntryCreate) -> EntryRead:
     timestamp_utc = payload.timestamp.astimezone(UTC)
@@ -132,6 +162,11 @@ def create_entry(payload: EntryCreate) -> EntryRead:
             raise HTTPException(
                 status_code=400,
                 detail=f"Cannot add entry: this category '{payload.categoryId}' does not exist",
+            )
+        if not category.get("isActive", False):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot add entry: this category '{payload.categoryId}' is inactive",
             )
 
         preceding = previous_entry(table, payload.user_id, timestamp_utc)

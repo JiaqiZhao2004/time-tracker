@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { Category } from '../types/category'
+import { displayCategory, type DisplayCategory } from '../types/category'
 
 type Segment = {
-  category: Category
+  categoryId: string
   start: Date
   end: Date
 }
 
 const props = defineProps<{
   segments: Segment[]
-  categories: Array<{ key: Category; label: string; color: string }>
+  categories: DisplayCategory[]
   end: Date
 }>()
 
@@ -18,23 +18,13 @@ const props = defineProps<{
  * Calculate time spent on each category in milliseconds
  */
 const categoryTimes = computed(() => {
-  const times: Record<Category, number> = {
-    coursework: 0,
-    work: 0,
-    prayer: 0,
-    rest: 0,
-    social: 0,
-    family: 0,
-    'self-study': 0,
-    chores: 0,
-    exercise: 0,
-  }
+  const times: Record<string, number> = {}
 
   for (const segment of props.segments) {
     const endTime = segment.end > props.end ? props.end : segment.end
     const duration = endTime.getTime() - segment.start.getTime()
     if (duration > 0) {
-      times[segment.category] = (times[segment.category] || 0) + duration
+      times[segment.categoryId] = (times[segment.categoryId] || 0) + duration
     }
   }
 
@@ -59,12 +49,12 @@ const formatTime = (ms: number): string => {
  * Get sorted categories by time spent (descending)
  */
 const sortedCategories = computed(() => {
-  return props.categories
-    .map((cat) => ({
-      ...cat,
-      time: categoryTimes.value[cat.key],
+  return Object.entries(categoryTimes.value)
+    .map(([categoryId, time]) => ({
+      ...(props.categories.find((category) => category.categoryId === categoryId) ??
+        displayCategory({ categoryId, name: categoryId, isActive: false })),
+      time,
     }))
-    .filter((cat) => cat.time > 0)
     .sort((a, b) => b.time - a.time)
 })
 
@@ -98,12 +88,12 @@ const getPercentage = (time: number): number => {
     <div v-else class="category-list">
       <div
         v-for="cat in sortedCategories"
-        :key="cat.key"
+        :key="cat.categoryId"
         class="category-item"
       >
         <div class="category-info">
           <div class="category-color" :style="{ backgroundColor: cat.color }"></div>
-          <div class="category-name">{{ cat.label }}</div>
+          <div class="category-name">{{ cat.name }}</div>
         </div>
         <div class="category-stats">
           <div class="category-time">{{ formatTime(cat.time) }}</div>
