@@ -65,10 +65,10 @@ const updateCategoryStatus = async (category: DisplayCategory, isActive: boolean
 
 <template>
   <section class="controls" :class="{ editing: isEditing }">
-    <div class="controls-header">
-      <span v-if="isEditing" class="title">Categories</span>
+    <div v-if="isEditing" class="controls-header">
+      <span class="title">Categories</span>
       <button class="edit-toggle" type="button" @click="toggleEditing">
-        {{ isEditing ? 'Done' : 'Edit Categories' }}
+        Done
       </button>
     </div>
 
@@ -100,6 +100,18 @@ const updateCategoryStatus = async (category: DisplayCategory, isActive: boolean
         @click="emit('logCategory', item.categoryId)"
       >
         {{ item.name }}
+      </button>
+      <button
+        class="category-button edit-categories-button"
+        type="button"
+        aria-label="Edit categories"
+        title="Edit categories"
+        @click="toggleEditing"
+      >
+        <svg class="edit-categories-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M16.9 3.8a2.1 2.1 0 0 1 3 3L8 18.7 3.8 20.2 5.3 16z" />
+          <path d="m14.8 5.9 3.3 3.3" />
+        </svg>
       </button>
       <p v-if="activeCategories.length === 0" class="empty-state">
         No active categories. Edit categories to add or enable one.
@@ -224,6 +236,32 @@ const updateCategoryStatus = async (category: DisplayCategory, isActive: boolean
 
 .category-button:hover {
   transform: translateY(-2px);
+}
+
+.edit-categories-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid #3a3f4b;
+  color: #b1b7c3;
+  box-shadow: none;
+}
+
+.edit-categories-icon {
+  width: 1.3rem;
+  height: 1.3rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.edit-categories-button:hover {
+  background: #21252e;
+  border-color: #59606e;
+  color: #f5f5f5;
 }
 
 .category-tile {
