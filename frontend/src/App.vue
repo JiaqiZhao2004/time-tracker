@@ -9,7 +9,7 @@ import { projectDailyTimeline } from './domain/dailyTimeline'
 import { resolveDisplayEntries } from './domain/displayEntries'
 import { shiftLocalDay, todayLocalDay } from './domain/localDay'
 import { fetchCategories, fetchEntriesLocal, postEntry, type EntriesLocalResponse } from './services/api'
-import { displayCategory, type DisplayCategory } from './types/category'
+import { displayCategory, type Category, type DisplayCategory } from './types/category'
 import type { Entry } from './types/entry'
 
 type HourMark = {
@@ -131,6 +131,16 @@ const handleEntryCreated = async (entry: Entry) => {
   await fetchEntriesForLocalDay()
 }
 
+const handleCategoryChanged = (category: Category) => {
+  const updated = displayCategory(category)
+  categories.value = [
+    ...categories.value.filter((existing) => existing.categoryId !== updated.categoryId),
+    updated,
+  ].sort(
+    (left, right) => left.name.localeCompare(right.name) || left.categoryId.localeCompare(right.categoryId),
+  )
+}
+
 const handleTimeClick = (date: Date) => {
   manualEntryDatetime.value = date
 }
@@ -185,7 +195,12 @@ onUnmounted(() => {
   <div class="app">
     <Header :dayLabel="selectedDay.label" @shiftDay="shiftDay" @goToToday="goToToday" />
 
-    <Buttons :categories="activeCategories" :lastCategory="lastCategory" @logCategory="logCategory" />
+    <Buttons
+      :categories="categories"
+      :lastCategory="lastCategory"
+      @logCategory="logCategory"
+      @categoryChanged="handleCategoryChanged"
+    />
 
     <ManualEntry :categories="activeCategories" :initialDatetime="manualEntryDatetime" @entryCreated="handleEntryCreated" />
 

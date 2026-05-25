@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import unicodedata
 import uuid
 from datetime import UTC, date as Date, datetime, timedelta
 from typing import Any
@@ -39,6 +40,16 @@ class EntryRead(BaseModel):
 class CategoryRead(BaseModel):
     categoryId: str
     name: str
+    isActive: bool
+
+
+class CategoryCreate(BaseModel):
+    user_id: str = Field(..., min_length=1)
+    name: str
+
+
+class CategoryStatusUpdate(BaseModel):
+    user_id: str = Field(..., min_length=1)
     isActive: bool
 
 
@@ -97,6 +108,30 @@ def category_read_from_item(item: dict[str, Any]) -> CategoryRead:
     )
 
 
+def normalize_category_name(name: str) -> str:
+    normalized = " ".join(unicodedata.normalize("NFC", name).split())
+    if not normalized:
+        raise HTTPException(status_code=400, detail="Category name cannot be blank")
+    if not all(character.isalnum() or character in " -'&" for character in normalized):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Category name may contain only letters, numbers, spaces, "
+                "hyphens, apostrophes, and ampersands"
+            ),
+        )
+    return normalized
+
+
+def comparable_category_name(name: str) -> str:
+    return " ".join(unicodedata.normalize("NFC", name).split()).lower()
+
+
+def category_id_for_name(user_id: str, name: str) -> str:
+    source = f"{user_id}:{comparable_category_name(name)}"
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, source))
+
+
 def previous_entry(table: Any, user_id: str, before: datetime) -> dict[str, Any] | None:
     response = table.query(
         KeyConditionExpression=Key("PK").eq(user_key(user_id))
@@ -140,6 +175,82 @@ def get_categories(user_id: str = Query(..., min_length=1)) -> list[CategoryRead
         )
         categories = [category_read_from_item(item) for item in items]
         return sorted(categories, key=lambda item: (item.name.casefold(), item.categoryId))
+    except (BotoCoreError, ClientError) as error:
+        raise dynamodb_failure(error) from error
+
+
+@app.post("/categories", response_model=CategoryRead, status_code=201)
+def create_category(payload: CategoryCreate) -> CategoryRead:
+    name = normalize_category_name(payload.name)
+    try:
+        table = get_table()
+        items = query_all(
+            table,
+            KeyConditionExpression=Key("PK").eq(user_key(payload.user_id))
+            & Key("SK").begins_with("CATEGORY#"),
+            ScanIndexForward=True,
+        )
+        if any(
+            comparable_category_name(item["name"]) == comparable_category_name(name)
+            for item in items
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail=f"A category named '{name}' already exists",
+            )
+
+        category_id = category_id_for_name(payload.user_id, name)
+        item = {
+            "PK": user_key(payload.user_id),
+            "SK": f"CATEGORY#{category_id}",
+            "entityType": "Category",
+            "categoryId": category_id,
+            "name": name,
+            "isActive": True,
+            "schemaVersion": 2,
+        }
+        table.put_item(
+            Item=item,
+            ConditionExpression="attribute_not_exists(PK) AND attribute_not_exists(SK)",
+        )
+        return category_read_from_item(item)
+    except HTTPException:
+        raise
+    except ClientError as error:
+        if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+            raise HTTPException(
+                status_code=409,
+                detail=f"A category named '{name}' already exists",
+            ) from error
+        raise dynamodb_failure(error) from error
+    except BotoCoreError as error:
+        raise dynamodb_failure(error) from error
+
+
+@app.patch("/categories/{category_id}", response_model=CategoryRead)
+def update_category_status(
+    category_id: str,
+    payload: CategoryStatusUpdate,
+) -> CategoryRead:
+    try:
+        table = get_table()
+        key = {
+            "PK": user_key(payload.user_id),
+            "SK": f"CATEGORY#{category_id}",
+        }
+        existing = table.get_item(Key=key).get("Item")
+        if existing is None:
+            raise HTTPException(status_code=404, detail="Category does not exist")
+
+        response = table.update_item(
+            Key=key,
+            UpdateExpression="SET isActive = :is_active",
+            ExpressionAttributeValues={":is_active": payload.isActive},
+            ReturnValues="ALL_NEW",
+        )
+        return category_read_from_item(response["Attributes"])
+    except HTTPException:
+        raise
     except (BotoCoreError, ClientError) as error:
         raise dynamodb_failure(error) from error
 

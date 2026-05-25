@@ -118,6 +118,8 @@ at the deployment root.
 Its v2 endpoints require user-scoped category IDs:
 
 - `GET /categories` accepts `user_id` and returns active and inactive category definitions.
+- `POST /categories` accepts `user_id` and a validated category `name`.
+- `PATCH /categories/{categoryId}` accepts `user_id` and `isActive` to disable or re-enable a category.
 - `POST /entries` accepts `user_id`, `categoryId`, and a timezone-aware `timestamp`.
 - `GET /entries-local` accepts `user_id`, `timezone`, and `date` query parameters.
 

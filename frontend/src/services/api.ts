@@ -40,6 +40,37 @@ export const fetchCategories = async (): Promise<Category[]> => {
   return response.json();
 };
 
+export const createCategory = async (name: string): Promise<Category> => {
+  const response = await fetch(`${API_BASE}/categories`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: USER_ID, name }),
+  });
+
+  if (!response.ok) {
+    throw new Error(await errorMessage(response, "Failed to add category"));
+  }
+
+  return response.json();
+};
+
+export const setCategoryActive = async (
+  categoryId: string,
+  isActive: boolean,
+): Promise<Category> => {
+  const response = await fetch(`${API_BASE}/categories/${encodeURIComponent(categoryId)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: USER_ID, isActive }),
+  });
+
+  if (!response.ok) {
+    throw new Error(await errorMessage(response, "Failed to update category"));
+  }
+
+  return response.json();
+};
+
 /**
  * Posts a new category entry to the API
  */

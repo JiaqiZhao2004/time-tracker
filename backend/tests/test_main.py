@@ -16,7 +16,9 @@ class FakeTable:
         self.category: dict[str, Any] | None = {"name": "Research", "isActive": True}
         self.query_responses: list[dict[str, Any]] = []
         self.put_items: list[dict[str, Any]] = []
+        self.update_items: list[dict[str, Any]] = []
         self.raise_client_error = False
+        self.raise_conditional_error = False
 
     def get_item(self, **kwargs: Any) -> dict[str, Any]:
         if self.raise_client_error:
@@ -37,8 +39,27 @@ class FakeTable:
         return {"Items": []}
 
     def put_item(self, **kwargs: Any) -> dict[str, Any]:
+        if self.raise_conditional_error:
+            raise ClientError(
+                {"Error": {"Code": "ConditionalCheckFailedException", "Message": "exists"}},
+                "PutItem",
+            )
         self.put_items.append(kwargs["Item"])
         return {}
+
+    def update_item(self, **kwargs: Any) -> dict[str, Any]:
+        if self.raise_client_error:
+            raise ClientError(
+                {"Error": {"Code": "InternalError", "Message": "unavailable"}},
+                "UpdateItem",
+            )
+        assert self.category is not None
+        self.update_items.append(kwargs)
+        self.category = {
+            **self.category,
+            "isActive": kwargs["ExpressionAttributeValues"][":is_active"],
+        }
+        return {"Attributes": self.category}
 
 
 @pytest.fixture
@@ -115,6 +136,140 @@ def test_categories_return_server_error_on_dynamodb_failure(
 
     assert response.status_code == 500
     assert "DynamoDB error" in response.json()["detail"]
+
+
+def test_create_category_normalizes_and_stores_enabled_category(
+    api: tuple[TestClient, FakeTable],
+) -> None:
+    client, table = api
+    table.query_responses = [{"Items": []}]
+
+    response = client.post(
+        "/categories",
+        json={"user_id": "student", "name": "  Research   &   Writing  "},
+    )
+
+    assert response.status_code == 201
+    assert response.json()["name"] == "Research & Writing"
+    assert response.json()["isActive"] is True
+    saved = table.put_items[0]
+    assert saved["categoryId"] == response.json()["categoryId"]
+    assert saved["SK"] == f"CATEGORY#{saved['categoryId']}"
+    assert saved["schemaVersion"] == 2
+
+
+def test_create_category_accepts_unicode_letters_and_allowed_punctuation(
+    api: tuple[TestClient, FakeTable],
+) -> None:
+    client, table = api
+    table.query_responses = [{"Items": []}]
+
+    response = client.post(
+        "/categories",
+        json={"user_id": "student", "name": "Etude du Cafe - 学習 2's"},
+    )
+
+    assert response.status_code == 201
+
+
+@pytest.mark.parametrize("name", [" ", "<script>", "Study/Play", "Study!"])
+def test_create_category_rejects_invalid_names(
+    api: tuple[TestClient, FakeTable],
+    name: str,
+) -> None:
+    client, table = api
+
+    response = client.post(
+        "/categories",
+        json={"user_id": "student", "name": name},
+    )
+
+    assert response.status_code == 400
+    assert table.put_items == []
+
+
+def test_create_category_rejects_existing_inactive_name_after_normalization(
+    api: tuple[TestClient, FakeTable],
+) -> None:
+    client, table = api
+    table.query_responses = [
+        {"Items": [category("writing", "Research & Writing", False)]}
+    ]
+
+    response = client.post(
+        "/categories",
+        json={"user_id": "student", "name": "  research   & writing "},
+    )
+
+    assert response.status_code == 409
+    assert "already exists" in response.json()["detail"]
+    assert table.put_items == []
+
+
+def test_create_category_rejects_concurrent_duplicate_write(
+    api: tuple[TestClient, FakeTable],
+) -> None:
+    client, table = api
+    table.query_responses = [{"Items": []}]
+    table.raise_conditional_error = True
+
+    response = client.post(
+        "/categories",
+        json={"user_id": "student", "name": "Research"},
+    )
+
+    assert response.status_code == 409
+    assert "already exists" in response.json()["detail"]
+
+
+def test_update_category_status_disables_and_returns_category(
+    api: tuple[TestClient, FakeTable],
+) -> None:
+    client, table = api
+    table.category = category("research", "Research")
+
+    response = client.patch(
+        "/categories/research",
+        json={"user_id": "student", "isActive": False},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "categoryId": "research",
+        "name": "Research",
+        "isActive": False,
+    }
+    assert table.update_items[0]["ExpressionAttributeValues"] == {":is_active": False}
+
+
+def test_update_category_status_reenables_category(
+    api: tuple[TestClient, FakeTable],
+) -> None:
+    client, table = api
+    table.category = category("rest", "Rest", False)
+
+    response = client.patch(
+        "/categories/rest",
+        json={"user_id": "student", "isActive": True},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["isActive"] is True
+
+
+def test_update_category_status_rejects_missing_category(
+    api: tuple[TestClient, FakeTable],
+) -> None:
+    client, table = api
+    table.category = None
+
+    response = client.patch(
+        "/categories/missing",
+        json={"user_id": "student", "isActive": False},
+    )
+
+    assert response.status_code == 404
+    assert table.update_items == []
 
 
 def test_lambda_handler_accepts_api_gateway_http_api_event(
