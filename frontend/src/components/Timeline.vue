@@ -92,7 +92,7 @@ const handleClick = (e: MouseEvent) => {
         <div
           v-for="(segment, index) in segments"
           :key="`${segment.categoryId}-${index}`"
-          class="segment"
+          :class="dayEnd > new Date() ? 'segment-today' : 'segment'"
           :style="segmentStyle(segment)"
         />
         <div v-if="segments.length === 0" class="empty">No entries yet</div>
@@ -204,13 +204,13 @@ const handleClick = (e: MouseEvent) => {
   white-space: nowrap;
 }
 
-.segment {
+.segment, .segment-today {
   position: absolute;
   top: 0;
   bottom: 0;
 }
 
-.segment:last-child {
+.segment-today:last-child {
   opacity: 0.2;
 }
 
