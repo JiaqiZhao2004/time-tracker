@@ -164,7 +164,7 @@ def test_create_entry_saves_v2_item_in_utc(api: tuple[TestClient, FakeTable]) ->
 
     assert response.status_code == 200
     assert response.json()["categoryId"] == "research"
-    assert response.json()["categoryNameSnapshot"] == "Research"
+    assert "categoryNameSnapshot" not in response.json()
     assert response.json()["timestamp"] == "2024-01-02T09:00:00Z"
     saved = table.put_items[0]
     assert saved["PK"] == "USER#student"
@@ -277,13 +277,11 @@ def test_entries_local_filters_local_day_and_returns_preceding_category(
             {
                 "id": "id-study",
                 "categoryId": "study",
-                "categoryNameSnapshot": "Study",
                 "timestamp": "2024-01-02T06:00:00Z",
             },
             {
                 "id": "id-work",
                 "categoryId": "work",
-                "categoryNameSnapshot": "Work",
                 "timestamp": "2024-01-03T05:59:59Z",
             },
         ],

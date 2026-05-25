@@ -1,35 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { displayCategory, type DisplayCategory } from '../types/category'
-
-type Segment = {
-  categoryId: string
-  start: Date
-  end: Date
-}
+import type { TimelineSummary } from '../domain/dailyTimeline'
 
 const props = defineProps<{
-  segments: Segment[]
-  categories: DisplayCategory[]
-  end: Date
+  summaries: TimelineSummary[]
+  totalElapsedDurationMs: number
 }>()
-
-/**
- * Calculate time spent on each category in milliseconds
- */
-const categoryTimes = computed(() => {
-  const times: Record<string, number> = {}
-
-  for (const segment of props.segments) {
-    const endTime = segment.end > props.end ? props.end : segment.end
-    const duration = endTime.getTime() - segment.start.getTime()
-    if (duration > 0) {
-      times[segment.categoryId] = (times[segment.categoryId] || 0) + duration
-    }
-  }
-
-  return times
-})
 
 /**
  * Convert milliseconds to hours and minutes
@@ -45,59 +20,32 @@ const formatTime = (ms: number): string => {
   return `${hours}h ${minutes}m`
 }
 
-/**
- * Get sorted categories by time spent (descending)
- */
-const sortedCategories = computed(() => {
-  return Object.entries(categoryTimes.value)
-    .map(([categoryId, time]) => ({
-      ...(props.categories.find((category) => category.categoryId === categoryId) ??
-        displayCategory({ categoryId, name: categoryId, isActive: false })),
-      time,
-    }))
-    .sort((a, b) => b.time - a.time)
-})
-
-/**
- * Calculate total time tracked
- */
-const totalTime = computed(() => {
-  return Object.values(categoryTimes.value).reduce((sum, time) => sum + time, 0)
-})
-
-/**
- * Calculate percentage for each category
- */
-const getPercentage = (time: number): number => {
-  if (totalTime.value === 0) return 0
-  return Math.round((time / totalTime.value) * 100)
-}
 </script>
 
 <template>
   <section class="timer">
     <div class="timer-header">
       <h2>Time Spent Today</h2>
-      <div class="total-time">Total: {{ formatTime(totalTime) }}</div>
+      <div class="total-time">Total: {{ formatTime(totalElapsedDurationMs) }}</div>
     </div>
     
-    <div v-if="sortedCategories.length === 0" class="no-data">
+    <div v-if="summaries.length === 0" class="no-data">
       No activity tracked yet today
     </div>
     
     <div v-else class="category-list">
       <div
-        v-for="cat in sortedCategories"
-        :key="cat.categoryId"
+        v-for="summary in summaries"
+        :key="summary.category.categoryId"
         class="category-item"
       >
         <div class="category-info">
-          <div class="category-color" :style="{ backgroundColor: cat.color }"></div>
-          <div class="category-name">{{ cat.name }}</div>
+          <div class="category-color" :style="{ backgroundColor: summary.category.color }"></div>
+          <div class="category-name">{{ summary.category.name }}</div>
         </div>
         <div class="category-stats">
-          <div class="category-time">{{ formatTime(cat.time) }}</div>
-          <div class="category-percentage">{{ getPercentage(cat.time) }}%</div>
+          <div class="category-time">{{ formatTime(summary.elapsedDurationMs) }}</div>
+          <div class="category-percentage">{{ summary.percentage }}%</div>
         </div>
       </div>
     </div>

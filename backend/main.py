@@ -33,7 +33,6 @@ class EntryCreate(BaseModel):
 class EntryRead(BaseModel):
     id: str
     categoryId: str
-    categoryNameSnapshot: str
     timestamp: AwareDatetime
 
 
@@ -86,7 +85,6 @@ def entry_read_from_item(item: dict[str, Any]) -> EntryRead:
     return EntryRead(
         id=item["id"],
         categoryId=item["categoryId"],
-        categoryNameSnapshot=item["categoryNameSnapshot"],
         timestamp=datetime_from_item(item),
     )
 

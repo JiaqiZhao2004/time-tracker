@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { postEntry, type Entry } from '../services/api'
+import { resolveDisplayEntries } from '../domain/displayEntries'
+import { formatLocalDatetimeInput } from '../domain/localDay'
+import { postEntry } from '../services/api'
 import type { DisplayCategory } from '../types/category'
+import type { Entry } from '../types/entry'
 
 const props = defineProps<{
   categories: DisplayCategory[]
@@ -12,13 +15,8 @@ const emit = defineEmits<{
   entryCreated: [entry: Entry]
 }>()
 
-const toLocalInputValue = (date: Date): string => {
-  const pad = (n: number) => n.toString().padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
-}
-
 const selectedCategoryId = ref('')
-const selectedDatetime = ref(toLocalInputValue(new Date()))
+const selectedDatetime = ref(formatLocalDatetimeInput(new Date()))
 const isSubmitting = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
@@ -38,7 +36,7 @@ watch(
 
 watch(() => props.initialDatetime, (newDate) => {
   if (newDate) {
-    selectedDatetime.value = toLocalInputValue(newDate)
+    selectedDatetime.value = formatLocalDatetimeInput(newDate)
   }
 })
 
@@ -52,7 +50,8 @@ const handleSubmit = async () => {
     const timestamp = new Date(selectedDatetime.value).toISOString()
     const created = await postEntry(selectedCategoryId.value, timestamp)
     emit('entryCreated', created)
-    successMessage.value = `Entry saved: ${created.categoryNameSnapshot}`
+    const displayEntry = resolveDisplayEntries([created], props.categories)[0]!
+    successMessage.value = `Entry saved: ${displayEntry.categoryName}`
     setTimeout(() => (successMessage.value = ''), 3000)
   } catch (err) {
     errorMessage.value = err instanceof Error ? err.message : 'Failed to save entry'

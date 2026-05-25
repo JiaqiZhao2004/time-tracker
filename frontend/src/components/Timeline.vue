@@ -1,12 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { instantAtTimelinePosition, type LocalDay } from '../domain/localDay'
+import type { TimelineSegment } from '../domain/dailyTimeline'
 import type { DisplayCategory } from '../types/category'
-
-type Segment = {
-  categoryId: string
-  start: Date
-  end: Date
-}
 
 type HourMark = {
   label: string
@@ -14,11 +10,10 @@ type HourMark = {
 }
 
 const props = defineProps<{
-  segments: Segment[]
+  segments: TimelineSegment[]
   hourMarks: HourMark[]
   categories: DisplayCategory[]
-  dayStart: Date
-  dayEnd: Date
+  day: LocalDay
   isLoading: boolean
   errorMessage: string
 }>()
@@ -30,11 +25,11 @@ const emit = defineEmits<{
 /**
  * Component-specific function: calculates style for timeline segments
  */
-const totalDayMs = computed(() => props.dayEnd.getTime() - props.dayStart.getTime())
+const totalDayMs = computed(() => props.day.end.getTime() - props.day.start.getTime())
 
-const segmentStyle = (segment: Segment) => {
-  const startOffset = Math.max(0, segment.start.getTime() - props.dayStart.getTime())
-  const endOffset = Math.min(totalDayMs.value, segment.end.getTime() - props.dayStart.getTime())
+const segmentStyle = (segment: TimelineSegment) => {
+  const startOffset = Math.max(0, segment.start.getTime() - props.day.start.getTime())
+  const endOffset = Math.min(totalDayMs.value, segment.end.getTime() - props.day.start.getTime())
   const left = (startOffset / totalDayMs.value) * 100
   const width = ((endOffset - startOffset) / totalDayMs.value) * 100
   const color = props.categories.find((item) => item.categoryId === segment.categoryId)?.color ?? '#999'
@@ -54,7 +49,7 @@ const handleMouseMove = (e: MouseEvent) => {
   const rect = bar.getBoundingClientRect()
   const x = Math.min(rect.width, Math.max(0, e.clientX - rect.left))
   const pct = x / rect.width
-  const timeAtCursor = new Date(props.dayStart.getTime() + pct * totalDayMs.value)
+  const timeAtCursor = instantAtTimelinePosition(props.day, pct)
   const hh = timeAtCursor.getHours().toString().padStart(2, '0')
   const mm = timeAtCursor.getMinutes().toString().padStart(2, '0')
   tooltipTime.value = `${hh}:${mm}`
@@ -71,7 +66,7 @@ const handleClick = (e: MouseEvent) => {
   const rect = bar.getBoundingClientRect()
   const x = Math.min(rect.width, Math.max(0, e.clientX - rect.left))
   const pct = x / rect.width
-  const timeAtCursor = new Date(props.dayStart.getTime() + pct * totalDayMs.value)
+  const timeAtCursor = instantAtTimelinePosition(props.day, pct)
   emit('timeClick', timeAtCursor)
 }
 </script>
@@ -92,7 +87,7 @@ const handleClick = (e: MouseEvent) => {
         <div
           v-for="(segment, index) in segments"
           :key="`${segment.categoryId}-${index}`"
-          :class="dayEnd > new Date() ? 'segment-today' : 'segment'"
+          :class="segment.projected ? 'segment-projected' : 'segment'"
           :style="segmentStyle(segment)"
         />
         <div v-if="segments.length === 0" class="empty">No entries yet</div>
@@ -204,13 +199,13 @@ const handleClick = (e: MouseEvent) => {
   white-space: nowrap;
 }
 
-.segment, .segment-today {
+.segment, .segment-projected {
   position: absolute;
   top: 0;
   bottom: 0;
 }
 
-.segment-today:last-child {
+.segment-projected {
   opacity: 0.2;
 }
 

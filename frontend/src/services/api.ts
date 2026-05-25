@@ -2,13 +2,7 @@
  * API service functions for fetching and posting time tracker entries
  */
 import type { Category } from "../types/category";
-
-export type Entry = {
-  id: string;
-  categoryId: string;
-  categoryNameSnapshot: string;
-  timestamp: string;
-};
+import type { Entry } from "../types/entry";
 
 export type EntriesLocalResponse = {
   prevEntryCategoryId: string | null;
