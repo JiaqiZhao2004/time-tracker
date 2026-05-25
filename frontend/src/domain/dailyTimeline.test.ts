@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { displayCategory } from '../types/category'
 import type { DisplayEntry } from '../types/entry'
-import { projectDailyTimeline } from './dailyTimeline'
-import { localDayContaining } from './localDay'
+import { projectDailyTimeline, projectTimelineRange } from './dailyTimeline'
+import { localDayContaining, localWeekContaining } from './localDay'
 
 const HOUR_MS = 60 * 60 * 1000
 const day = localDayContaining(new Date(2026, 4, 20, 12))
@@ -88,5 +88,58 @@ describe('Daily Timeline', () => {
     expect(projection.visibleCategories.find((category) => category.categoryId === 'archived')?.name)
       .toBe('archived')
     expect(projection.summaries[0]?.category.name).toBe('archived')
+  })
+})
+
+describe('Range Timeline', () => {
+  it('aggregates categories across a historical selected week', () => {
+    const week = localWeekContaining(day)
+    const mondayMorning = new Date(week.start)
+    mondayMorning.setHours(8)
+    const tuesdayMorning = new Date(week.start)
+    tuesdayMorning.setDate(tuesdayMorning.getDate() + 1)
+    tuesdayMorning.setHours(8)
+
+    const projection = projectTimelineRange({
+      range: week,
+      now: new Date(week.end.getTime() + HOUR_MS),
+      entries: [
+        {
+          id: 'work-monday',
+          categoryId: 'work',
+          categoryName: 'Work',
+          timestamp: mondayMorning.toISOString(),
+        },
+        {
+          id: 'rest-tuesday',
+          categoryId: 'rest',
+          categoryName: 'Rest',
+          timestamp: tuesdayMorning.toISOString(),
+        },
+      ],
+      precedingCategoryId: null,
+      categories,
+    })
+
+    expect(projection.totalElapsedDurationMs).toBe(6 * 24 * HOUR_MS + 16 * HOUR_MS)
+    expect(projection.summaries.map((summary) => summary.category.categoryId)).toEqual(['rest', 'work'])
+  })
+
+  it('counts a running current-week category only through now', () => {
+    const week = localWeekContaining(day)
+    const now = new Date(week.start)
+    now.setDate(now.getDate() + 2)
+    now.setHours(12)
+
+    const projection = projectTimelineRange({
+      range: week,
+      now,
+      entries: [],
+      precedingCategoryId: 'work',
+      categories,
+    })
+
+    expect(projection.totalElapsedDurationMs).toBe(60 * HOUR_MS)
+    expect(projection.segments[projection.segments.length - 1]?.projected).toBe(true)
   })
 })

@@ -5,10 +5,10 @@ import Buttons from './components/Buttons.vue'
 import ManualEntry from './components/ManualEntry.vue'
 import Timeline from './components/Timeline.vue'
 import Timer from './components/Timer.vue'
-import { projectDailyTimeline } from './domain/dailyTimeline'
+import { projectDailyTimeline, projectTimelineRange } from './domain/dailyTimeline'
 import { resolveDisplayEntries } from './domain/displayEntries'
-import { shiftLocalDay, todayLocalDay } from './domain/localDay'
-import { fetchCategories, fetchEntriesLocal, postEntry, type EntriesLocalResponse } from './services/api'
+import { localDayContaining, localWeekContaining, localWeekDates, shiftLocalDay, todayLocalDay } from './domain/localDay'
+import { fetchCategories, fetchEntriesLocal, fetchEntriesLocalWeek, postEntry, type EntriesLocalResponse, type EntriesPeriod } from './services/api'
 import { displayCategory, type Category, type DisplayCategory } from './types/category'
 import type { Entry } from './types/entry'
 
@@ -29,6 +29,12 @@ const manualEntryDatetime = ref<Date | undefined>(undefined)
 let tickerId: number | undefined
 
 const selectedDay = ref(todayLocalDay())
+const summaryPeriod = ref<EntriesPeriod>('day')
+const weeklyEntriesByStart = ref<Record<string, EntriesLocalResponse>>({})
+const weeklyIsLoading = ref(false)
+const weeklyErrorMessage = ref('')
+const pendingWeeklyRequests = new Map<string, number>()
+let weeklyRequestId = 0
 
 const activeCategories = computed(() => categories.value.filter((category) => category.isActive))
 const displayEntries = computed(() => resolveDisplayEntries(entries.value, categories.value))
@@ -41,6 +47,21 @@ const timeline = computed(() =>
     categories: categories.value,
   }),
 )
+const selectedWeek = computed(() => localWeekContaining(selectedDay.value))
+const selectedWeekData = computed(() => weeklyEntriesByStart.value[selectedWeek.value.date])
+const weeklyDisplayEntries = computed(() =>
+  resolveDisplayEntries(selectedWeekData.value?.entries ?? [], categories.value),
+)
+const weeklyTimeline = computed(() =>
+  projectTimelineRange({
+    range: selectedWeek.value,
+    now: now.value,
+    entries: weeklyDisplayEntries.value,
+    precedingCategoryId: selectedWeekData.value?.prevEntryCategoryId ?? null,
+    categories: categories.value,
+  }),
+)
+const timerTimeline = computed(() => summaryPeriod.value === 'week' ? weeklyTimeline.value : timeline.value)
 
 const lastCategory = computed(
   () =>
@@ -82,6 +103,52 @@ const fetchEntriesForLocalDay = async () => {
   }
 }
 
+const fetchEntriesForSelectedWeek = async (force = false) => {
+  const week = selectedWeek.value
+  const key = week.date
+  if (!force && (weeklyEntriesByStart.value[key] || pendingWeeklyRequests.has(key))) {
+    weeklyIsLoading.value = pendingWeeklyRequests.has(key)
+    return
+  }
+
+  const requestId = ++weeklyRequestId
+  pendingWeeklyRequests.set(key, requestId)
+  weeklyIsLoading.value = true
+  weeklyErrorMessage.value = ''
+
+  try {
+    const data = await fetchEntriesLocalWeek(week.timezone, localWeekDates(week))
+    if (pendingWeeklyRequests.get(key) !== requestId) {
+      return
+    }
+    weeklyEntriesByStart.value = { ...weeklyEntriesByStart.value, [key]: data }
+  } catch (error) {
+    if (pendingWeeklyRequests.get(key) === requestId && selectedWeek.value.date === key) {
+      weeklyErrorMessage.value = error instanceof Error ? error.message : 'Failed to load weekly entries'
+    }
+  } finally {
+    if (pendingWeeklyRequests.get(key) === requestId) {
+      pendingWeeklyRequests.delete(key)
+      if (selectedWeek.value.date === key) {
+        weeklyIsLoading.value = false
+      }
+    }
+  }
+}
+
+const refreshVisibleWeeklySummaryForEntry = async (entry: Entry) => {
+  const entryWeekKey = localWeekContaining(
+    localDayContaining(new Date(entry.timestamp), selectedDay.value.timezone),
+  ).date
+  const entriesByStart = { ...weeklyEntriesByStart.value }
+  delete entriesByStart[entryWeekKey]
+  weeklyEntriesByStart.value = entriesByStart
+
+  if (summaryPeriod.value === 'week' && selectedWeek.value.date === entryWeekKey) {
+    await fetchEntriesForSelectedWeek(true)
+  }
+}
+
 const loadInitialData = async () => {
   isLoading.value = true
   errorMessage.value = ''
@@ -116,7 +183,7 @@ const logCategory = async (categoryId: string) => {
         (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
       )
     }
-    await fetchEntriesForLocalDay()
+    await Promise.all([fetchEntriesForLocalDay(), refreshVisibleWeeklySummaryForEntry(created)])
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'Failed to save entry'
   }
@@ -128,7 +195,7 @@ const handleEntryCreated = async (entry: Entry) => {
       (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
     )
   }
-  await fetchEntriesForLocalDay()
+  await Promise.all([fetchEntriesForLocalDay(), refreshVisibleWeeklySummaryForEntry(entry)])
 }
 
 const handleCategoryChanged = (category: Category) => {
@@ -158,6 +225,11 @@ const hourMarks = computed<HourMark[]>(() => {
 const goToToday = () => {
   selectedDay.value = todayLocalDay()
   fetchEntriesForLocalDay()
+  if (summaryPeriod.value === 'week') {
+    weeklyErrorMessage.value = ''
+    weeklyIsLoading.value = pendingWeeklyRequests.has(selectedWeek.value.date)
+    fetchEntriesForSelectedWeek()
+  }
 }
 
 const shiftDay = (direction: -1 | 1) => {
@@ -167,6 +239,20 @@ const shiftDay = (direction: -1 | 1) => {
   }
   selectedDay.value = shifted
   fetchEntriesForLocalDay()
+  if (summaryPeriod.value === 'week') {
+    weeklyErrorMessage.value = ''
+    weeklyIsLoading.value = pendingWeeklyRequests.has(selectedWeek.value.date)
+    fetchEntriesForSelectedWeek()
+  }
+}
+
+const setSummaryPeriod = (period: EntriesPeriod) => {
+  summaryPeriod.value = period
+  if (period === 'week') {
+    weeklyErrorMessage.value = ''
+    weeklyIsLoading.value = pendingWeeklyRequests.has(selectedWeek.value.date)
+    fetchEntriesForSelectedWeek()
+  }
 }
 
 onMounted(() => {
@@ -214,7 +300,14 @@ onUnmounted(() => {
       @timeClick="handleTimeClick"
     />
 
-    <Timer :summaries="timeline.summaries" :totalElapsedDurationMs="timeline.totalElapsedDurationMs" />
+    <Timer
+      :period="summaryPeriod"
+      :summaries="timerTimeline.summaries"
+      :totalElapsedDurationMs="timerTimeline.totalElapsedDurationMs"
+      :isLoading="summaryPeriod === 'week' && weeklyIsLoading"
+      :errorMessage="summaryPeriod === 'week' ? weeklyErrorMessage : ''"
+      @periodChange="setSummaryPeriod"
+    />
   </div>
 </template>
 

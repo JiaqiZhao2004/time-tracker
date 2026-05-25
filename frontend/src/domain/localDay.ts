@@ -1,10 +1,12 @@
-export type LocalDay = {
+export type LocalRange = {
   start: Date
   end: Date
   date: string
   timezone: string
   label: string
 }
+
+export type LocalDay = LocalRange
 
 const pad = (value: number): string => value.toString().padStart(2, '0')
 
@@ -31,6 +33,30 @@ export const localDayContaining = (instant: Date, timezone: string = runtimeTime
 
 export const todayLocalDay = (now: Date = new Date(), timezone?: string): LocalDay =>
   localDayContaining(now, timezone)
+
+export const localWeekContaining = (day: LocalDay): LocalRange => {
+  const start = new Date(day.start)
+  const daysSinceMonday = (start.getDay() + 6) % 7
+  start.setDate(start.getDate() - daysSinceMonday)
+
+  const end = new Date(start)
+  end.setDate(end.getDate() + 7)
+
+  return {
+    start,
+    end,
+    date: localCalendarDate(start),
+    timezone: day.timezone,
+    label: `${start.toLocaleDateString()} - ${new Date(end.getTime() - 1).toLocaleDateString()}`,
+  }
+}
+
+export const localWeekDates = (week: LocalRange): string[] =>
+  Array.from({ length: 7 }, (_, offset) => {
+    const start = new Date(week.start)
+    start.setDate(start.getDate() + offset)
+    return localCalendarDate(start)
+  })
 
 export const shiftLocalDay = (
   day: LocalDay,

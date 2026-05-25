@@ -4,7 +4,10 @@
 import type { Category } from "../types/category";
 import type { Entry } from "../types/entry";
 
+export type EntriesPeriod = "day" | "week";
+
 export type EntriesLocalResponse = {
+  period?: EntriesPeriod;
   prevEntryCategoryId: string | null;
   entries: Entry[];
 };
@@ -92,13 +95,14 @@ export const postEntry = async (
 };
 
 /**
- * Fetches entries for a specific local day with timezone
+ * Fetches entries for a local day or Monday-starting week in the given timezone
  */
 export const fetchEntriesLocal = async (
   timezone: string,
   date: string,
+  period: EntriesPeriod = "day",
 ): Promise<EntriesLocalResponse> => {
-  const params = new URLSearchParams({ user_id: USER_ID, timezone, date });
+  const params = new URLSearchParams({ user_id: USER_ID, timezone, date, period });
   const response = await fetch(
     `${API_BASE}/entries-local?${params.toString()}`,
   );
@@ -108,4 +112,32 @@ export const fetchEntriesLocal = async (
   }
 
   return response.json();
+};
+
+/**
+ * Fetches a weekly response, falling back to day requests for older backends
+ * that accept but ignore the period parameter.
+ */
+export const fetchEntriesLocalWeek = async (
+  timezone: string,
+  dates: string[],
+): Promise<EntriesLocalResponse> => {
+  const weekStartDate = dates[0];
+  if (!weekStartDate || dates.length !== 7) {
+    throw new Error("A local week must contain seven request dates");
+  }
+
+  const response = await fetchEntriesLocal(timezone, weekStartDate, "week");
+  if (response.period === "week") {
+    return response;
+  }
+
+  const remainingDays = await Promise.all(
+    dates.slice(1).map((date) => fetchEntriesLocal(timezone, date)),
+  );
+  return {
+    period: "week",
+    prevEntryCategoryId: response.prevEntryCategoryId,
+    entries: [response, ...remainingDays].flatMap((day) => day.entries),
+  };
 };

@@ -427,6 +427,7 @@ def test_entries_local_filters_local_day_and_returns_preceding_category(
 
     assert response.status_code == 200
     assert response.json() == {
+        "period": "day",
         "prevEntryCategoryId": "rest",
         "entries": [
             {
@@ -438,6 +439,50 @@ def test_entries_local_filters_local_day_and_returns_preceding_category(
                 "id": "id-work",
                 "categoryId": "work",
                 "timestamp": "2024-01-03T05:59:59Z",
+            },
+        ],
+    }
+
+
+def test_entries_local_filters_monday_week_across_dst_transition(
+    api: tuple[TestClient, FakeTable],
+) -> None:
+    client, table = api
+    table.query_responses = [
+        {
+            "Items": [
+                entry("study", "2024-03-04T06:00:00+00:00", "Study"),
+                entry("work", "2024-03-11T04:59:59+00:00", "Work"),
+                entry("outside", "2024-03-11T05:00:00+00:00", "Outside"),
+            ]
+        },
+        {"Items": [entry("rest", "2024-03-04T05:59:59+00:00", "Rest")]},
+    ]
+
+    response = client.get(
+        "/entries-local",
+        params={
+            "user_id": "student",
+            "timezone": "America/Chicago",
+            "date": "2024-03-06",
+            "period": "week",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "period": "week",
+        "prevEntryCategoryId": "rest",
+        "entries": [
+            {
+                "id": "id-study",
+                "categoryId": "study",
+                "timestamp": "2024-03-04T06:00:00Z",
+            },
+            {
+                "id": "id-work",
+                "categoryId": "work",
+                "timestamp": "2024-03-11T04:59:59Z",
             },
         ],
     }
@@ -471,6 +516,22 @@ def test_entries_local_rejects_invalid_parameters(
 
     assert response.status_code == 400
     assert detail in response.json()["detail"]
+
+
+def test_entries_local_rejects_unsupported_period(api: tuple[TestClient, FakeTable]) -> None:
+    client, _ = api
+
+    response = client.get(
+        "/entries-local",
+        params={
+            "user_id": "student",
+            "timezone": "America/Chicago",
+            "date": "2024-01-02",
+            "period": "month",
+        },
+    )
+
+    assert response.status_code == 422
 
 
 def test_malformed_entry_request_is_unprocessable(

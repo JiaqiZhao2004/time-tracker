@@ -1,4 +1,4 @@
-import type { LocalDay } from './localDay'
+import type { LocalDay, LocalRange } from './localDay'
 import { displayCategory, type DisplayCategory } from '../types/category'
 import type { DisplayEntry } from '../types/entry'
 
@@ -15,19 +15,26 @@ export type TimelineSummary = {
   percentage: number
 }
 
-export type DailyTimelineProjection = {
+export type TimelineProjection = {
   segments: TimelineSegment[]
   visibleCategories: DisplayCategory[]
   summaries: TimelineSummary[]
   totalElapsedDurationMs: number
 }
 
-type ProjectionInput = {
-  day: LocalDay
+type CommonProjectionInput = {
   now: Date
   entries: DisplayEntry[]
   precedingCategoryId: string | null
   categories: DisplayCategory[]
+}
+
+type DailyProjectionInput = CommonProjectionInput & {
+  day: LocalDay
+}
+
+type RangeProjectionInput = CommonProjectionInput & {
+  range: LocalRange
 }
 
 const sortedDisplayCategories = (categories: Map<string, DisplayCategory>): DisplayCategory[] =>
@@ -35,17 +42,17 @@ const sortedDisplayCategories = (categories: Map<string, DisplayCategory>): Disp
     (left, right) => left.name.localeCompare(right.name) || left.categoryId.localeCompare(right.categoryId),
   )
 
-export const projectDailyTimeline = ({
-  day,
+export const projectTimelineRange = ({
+  range,
   now,
   entries,
   precedingCategoryId,
   categories,
-}: ProjectionInput): DailyTimelineProjection => {
+}: RangeProjectionInput): TimelineProjection => {
   const displayCategories = new Map(categories.map((category) => [category.categoryId, category]))
   const datedEntries = entries
     .map((entry) => ({ ...entry, instant: new Date(entry.timestamp) }))
-    .filter((entry) => entry.instant >= day.start && entry.instant < day.end)
+    .filter((entry) => entry.instant >= range.start && entry.instant < range.end)
     .sort((left, right) => left.instant.getTime() - right.instant.getTime())
 
   for (const entry of datedEntries) {
@@ -75,7 +82,7 @@ export const projectDailyTimeline = ({
 
   const segments: TimelineSegment[] = []
   let categoryId = precedingCategoryId
-  let cursor = day.start
+  let cursor = range.start
 
   for (const entry of datedEntries) {
     if (categoryId && entry.instant > cursor) {
@@ -85,18 +92,18 @@ export const projectDailyTimeline = ({
     cursor = entry.instant
   }
 
-  if (categoryId && day.end > cursor) {
-    const isCurrentDay = now >= day.start && now < day.end
-    if (isCurrentDay) {
+  if (categoryId && range.end > cursor) {
+    const isCurrentRange = now >= range.start && now < range.end
+    if (isCurrentRange) {
       if (now > cursor) {
         segments.push({ categoryId, start: cursor, end: now, projected: false })
       }
       const projectedStart = now > cursor ? now : cursor
-      if (projectedStart < day.end) {
-        segments.push({ categoryId, start: projectedStart, end: day.end, projected: true })
+      if (projectedStart < range.end) {
+        segments.push({ categoryId, start: projectedStart, end: range.end, projected: true })
       }
     } else {
-      segments.push({ categoryId, start: cursor, end: day.end, projected: false })
+      segments.push({ categoryId, start: cursor, end: range.end, projected: false })
     }
   }
 
@@ -129,3 +136,6 @@ export const projectDailyTimeline = ({
 
   return { segments, visibleCategories, summaries, totalElapsedDurationMs }
 }
+
+export const projectDailyTimeline = ({ day, ...input }: DailyProjectionInput): TimelineProjection =>
+  projectTimelineRange({ range: day, ...input })

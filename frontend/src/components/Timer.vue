@@ -1,10 +1,21 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { TimelineSummary } from '../domain/dailyTimeline'
+import type { EntriesPeriod } from '../services/api'
 
 const props = defineProps<{
+  period: EntriesPeriod
   summaries: TimelineSummary[]
   totalElapsedDurationMs: number
+  isLoading: boolean
+  errorMessage: string
 }>()
+
+const emit = defineEmits<{
+  periodChange: [period: EntriesPeriod]
+}>()
+
+const periodLabel = computed(() => props.period === 'week' ? 'Selected Week' : 'Selected Day')
 
 /**
  * Convert milliseconds to hours and minutes
@@ -25,14 +36,38 @@ const formatTime = (ms: number): string => {
 <template>
   <section class="timer">
     <div class="timer-header">
-      <h2>Time Spent Today</h2>
+      <div class="timer-title">
+        <h2>Time Spent: {{ periodLabel }}</h2>
+        <div class="period-toggle" role="group" aria-label="Summary period">
+          <button
+            :class="{ active: period === 'day' }"
+            :aria-pressed="period === 'day'"
+            @click="emit('periodChange', 'day')"
+          >
+            Day
+          </button>
+          <button
+            :class="{ active: period === 'week' }"
+            :aria-pressed="period === 'week'"
+            @click="emit('periodChange', 'week')"
+          >
+            Week
+          </button>
+        </div>
+      </div>
       <div class="total-time">Total: {{ formatTime(totalElapsedDurationMs) }}</div>
     </div>
-    
-    <div v-if="summaries.length === 0" class="no-data">
-      No activity tracked yet today
+
+    <p v-if="errorMessage" class="timer-error">{{ errorMessage }}</p>
+
+    <div v-if="isLoading && summaries.length === 0" class="no-data">
+      Loading {{ period === 'week' ? 'weekly' : 'daily' }} activity...
     </div>
-    
+
+    <div v-else-if="!errorMessage && summaries.length === 0" class="no-data">
+      No activity tracked for the selected {{ period }}
+    </div>
+
     <div v-else class="category-list">
       <div
         v-for="summary in summaries"
@@ -70,6 +105,13 @@ const formatTime = (ms: number): string => {
   border-bottom: 1px solid #2a2e38;
 }
 
+.timer-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+}
+
 .timer-header h2 {
   margin: 0;
   font-size: 1.5rem;
@@ -77,10 +119,38 @@ const formatTime = (ms: number): string => {
   color: #f5f5f5;
 }
 
+.period-toggle {
+  display: inline-flex;
+  padding: 0.2rem;
+  background: #11141b;
+  border-radius: 999px;
+}
+
+.period-toggle button {
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 0.4rem 0.8rem;
+  font-weight: 600;
+}
+
+.period-toggle button.active {
+  background: #6c63ff;
+  color: #f5f5f5;
+}
+
 .total-time {
   font-size: 1.25rem;
   font-weight: 600;
   color: #6c63ff;
+  white-space: nowrap;
+}
+
+.timer-error {
+  margin: 0 0 1rem;
+  color: #ff7675;
 }
 
 .no-data {

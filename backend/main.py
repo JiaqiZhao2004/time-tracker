@@ -5,7 +5,7 @@ import os
 import unicodedata
 import uuid
 from datetime import UTC, date as Date, datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import boto3
@@ -54,6 +54,7 @@ class CategoryStatusUpdate(BaseModel):
 
 
 class EntriesLocalResponse(BaseModel):
+    period: Literal["day", "week"]
     prevEntryCategoryId: str | None = None
     entries: list[EntryRead]
 
@@ -314,6 +315,7 @@ def get_entries_local(
     user_id: str = Query(..., min_length=1),
     timezone: str = Query(..., min_length=1),
     date: str = Query(..., min_length=1),
+    period: Literal["day", "week"] = Query("day"),
 ) -> EntriesLocalResponse:
     try:
         local_timezone = ZoneInfo(timezone)
@@ -325,10 +327,13 @@ def get_entries_local(
     except ValueError:
         raise HTTPException(status_code=400, detail=f"Invalid date format: {date}")
 
+    if period == "week":
+        local_date -= timedelta(days=local_date.weekday())
+
     start_local = datetime.combine(local_date, datetime.min.time()).replace(
         tzinfo=local_timezone
     )
-    end_local = start_local + timedelta(days=1)
+    end_local = start_local + timedelta(days=7 if period == "week" else 1)
     start_utc = start_local.astimezone(UTC)
     end_utc = end_local.astimezone(UTC)
 
@@ -347,6 +352,7 @@ def get_entries_local(
         ]
         preceding = previous_entry(table, user_id, start_utc)
         return EntriesLocalResponse(
+            period=period,
             prevEntryCategoryId=preceding["categoryId"] if preceding else None,
             entries=entries,
         )
