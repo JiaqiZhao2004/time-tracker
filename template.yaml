@@ -1,0 +1,91 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Time Tracker FastAPI backend on AWS Lambda and API Gateway HTTP API
+
+Parameters:
+  TimeTrackerTableName:
+    Type: String
+    Default: time-tracker-v2
+    Description: Existing DynamoDB table used by the backend.
+  AllowedOrigins:
+    Type: CommaDelimitedList
+    Default: http://localhost:5173,http://localhost:5174,https://dxvboogtj4a4b.cloudfront.net
+    Description: Browser origins allowed to call the HTTP API.
+
+Globals:
+  Function:
+    Runtime: python3.14
+    Architectures:
+      - arm64
+    MemorySize: 256
+    Timeout: 10
+
+Resources:
+  TimeTrackerApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: $default
+      CorsConfiguration:
+        AllowCredentials: true
+        AllowHeaders:
+          - Content-Type
+        AllowMethods:
+          - GET
+          - POST
+          - OPTIONS
+        AllowOrigins: !Ref AllowedOrigins
+      DefinitionBody:
+        openapi: 3.0.1
+        info:
+          title: Time Tracker API
+          version: "1.0"
+        paths: {}
+
+  TimeTrackerBackendFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: main.handler
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref TimeTrackerTableName
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Sid: AccessTimeTrackerTable
+              Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:Query
+              Resource: !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${TimeTrackerTableName}
+      Events:
+        GetCategories:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref TimeTrackerApi
+            Path: /categories
+            Method: GET
+            PayloadFormatVersion: "2.0"
+        CreateEntry:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref TimeTrackerApi
+            Path: /entries
+            Method: POST
+            PayloadFormatVersion: "2.0"
+        GetEntriesLocal:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref TimeTrackerApi
+            Path: /entries-local
+            Method: GET
+            PayloadFormatVersion: "2.0"
+
+Outputs:
+  ApiBaseUrl:
+    Description: Configure the frontend VITE_API_BASE value with this URL.
+    Value: !Sub https://${TimeTrackerApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
+  FunctionName:
+    Description: Name of the deployed backend Lambda function.
+    Value: !Ref TimeTrackerBackendFunction

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import uuid
 from datetime import UTC, date as Date, datetime, timedelta
 from typing import Any
@@ -15,7 +16,7 @@ from mangum import Mangum
 from pydantic import AwareDatetime, BaseModel, Field, field_validator
 
 
-TABLE_NAME = "time-tracker-v2"
+TABLE_NAME = os.getenv("TABLE_NAME", "time-tracker-v2")
 
 
 class EntryCreate(BaseModel):

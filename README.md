@@ -56,10 +56,64 @@ python -m venv .venv
 .venv/bin/uvicorn backend.main:app --reload
 ```
 
-For AWS Lambda behind API Gateway, package the backend with its runtime
-dependencies and configure the handler as `backend.main.handler` (or
-`main.handler` when the contents of `backend/` are at the deployment root).
-The handler uses `Mangum` to run the same FastAPI routes in Lambda.
+For AWS Lambda behind API Gateway, `template.yaml` defines an AWS SAM stack
+containing the Mangum-backed Lambda function, HTTP API routes, CORS settings,
+and permissions for the existing `time-tracker-v2` DynamoDB table. Deploy it
+from the repository root:
+
+```bash
+sam validate --lint
+sam build --use-container
+sam deploy --guided
+```
+
+Run Docker before `sam build --use-container`; the container build ensures
+Python binary dependencies are packaged for the Lambda runtime. The SAM stack
+uses the DynamoDB table named by `TimeTrackerTableName` and does not create or
+delete that table.
+
+On the guided deployment, set `AllowedOrigins` to the deployed frontend origin
+in addition to any local origins you still need, for example
+`https://example.cloudfront.net,http://localhost:5173`. Set
+`TimeTrackerTableName` if deploying against a table other than
+`time-tracker-v2`. The stack output `ApiBaseUrl` is the value to provide as
+`VITE_API_BASE` when building the frontend.
+
+The first guided deployment saves choices such as the stack name, AWS region,
+and parameters to `samconfig.toml`. After that, rebuild and deploy with:
+
+```bash
+sam build --use-container
+sam deploy
+```
+
+SAM asks whether `TimeTrackerBackendFunction` can remain unauthenticated once
+for each public HTTP API route. This application currently relies on public
+API endpoints, so accept those prompts only when that is intended.
+
+#### Troubleshooting SAM Uploads
+
+If deployment fails with `S3 Bucket does not exist` while uploading
+`TimeTrackerBackendFunction`, SAM's managed artifact bucket may have been
+deleted while its bootstrap CloudFormation stack remains. Recreate that
+managed bucket by deleting only the SAM bootstrap stack, then deploying again:
+
+```bash
+aws cloudformation delete-stack \
+  --stack-name aws-sam-cli-managed-default \
+  --region us-east-2
+aws cloudformation wait stack-delete-complete \
+  --stack-name aws-sam-cli-managed-default \
+  --region us-east-2
+sam deploy
+```
+
+This does not delete the `time-tracker-v2` DynamoDB table or the application
+stack `time-tracker-sam-app`.
+
+If packaging the Lambda without SAM, configure its handler as
+`backend.main.handler`, or `main.handler` when the contents of `backend/` are
+at the deployment root.
 
 Its v2 endpoints require user-scoped category IDs:
 
