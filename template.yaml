@@ -9,7 +9,7 @@ Parameters:
     Description: Existing DynamoDB table used by the backend.
   AllowedOrigins:
     Type: CommaDelimitedList
-    Default: http://localhost:5173,http://localhost:5174,https://dxvboogtj4a4b.cloudfront.net
+    Default: http://localhost:5173,https://dxvboogtj4a4b.cloudfront.net
     Description: Browser origins allowed to call the HTTP API.
 
 Globals:
@@ -17,7 +17,7 @@ Globals:
     Runtime: python3.14
     Architectures:
       - arm64
-    MemorySize: 256
+    MemorySize: 512
     Timeout: 10
 
 Resources:
