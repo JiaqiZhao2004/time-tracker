@@ -74,6 +74,23 @@ export const setCategoryActive = async (
   return response.json();
 };
 
+export const renameCategory = async (
+  categoryId: string,
+  name: string,
+): Promise<Category> => {
+  const response = await fetch(`${API_BASE}/categories/${encodeURIComponent(categoryId)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: USER_ID, name }),
+  });
+
+  if (!response.ok) {
+    throw new Error(await errorMessage(response, "Failed to rename category"));
+  }
+
+  return response.json();
+};
+
 /**
  * Posts a new category entry to the API
  */

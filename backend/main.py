@@ -9,6 +9,7 @@ from typing import Any, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import boto3
+import regex
 from boto3.dynamodb.conditions import Key
 from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import FastAPI, HTTPException, Query
@@ -18,6 +19,16 @@ from pydantic import AwareDatetime, BaseModel, Field, field_validator
 
 
 TABLE_NAME = os.getenv("TABLE_NAME", "time-tracker-v2")
+PICTOGRAPHIC_EMOJI = (
+    r"\p{Extended_Pictographic}\uFE0F?(?:\p{Emoji_Modifier})?"
+)
+EMOJI_SEQUENCE = (
+    rf"(?:{PICTOGRAPHIC_EMOJI}(?:\u200D{PICTOGRAPHIC_EMOJI})*"
+    r"|\p{Regional_Indicator}{2}|[0-9#*]\uFE0F?\u20E3)"
+)
+CATEGORY_NAME_PATTERN = regex.compile(
+    rf"^(?:[\p{{L}}\p{{N}} '&-]+|{EMOJI_SEQUENCE})+$"
+)
 
 
 class EntryCreate(BaseModel):
@@ -48,9 +59,10 @@ class CategoryCreate(BaseModel):
     name: str
 
 
-class CategoryStatusUpdate(BaseModel):
+class CategoryUpdate(BaseModel):
     user_id: str = Field(..., min_length=1)
-    isActive: bool
+    name: str | None = None
+    isActive: bool | None = None
 
 
 class EntriesLocalResponse(BaseModel):
@@ -113,12 +125,12 @@ def normalize_category_name(name: str) -> str:
     normalized = " ".join(unicodedata.normalize("NFC", name).split())
     if not normalized:
         raise HTTPException(status_code=400, detail="Category name cannot be blank")
-    if not all(character.isalnum() or character in " -'&" for character in normalized):
+    if CATEGORY_NAME_PATTERN.fullmatch(normalized) is None:
         raise HTTPException(
             status_code=400,
             detail=(
                 "Category name may contain only letters, numbers, spaces, "
-                "hyphens, apostrophes, and ampersands"
+                "hyphens, apostrophes, ampersands, and emoji"
             ),
         )
     return normalized
@@ -128,9 +140,25 @@ def comparable_category_name(name: str) -> str:
     return " ".join(unicodedata.normalize("NFC", name).split()).lower()
 
 
-def category_id_for_name(user_id: str, name: str) -> str:
+def category_id_for_name(user_id: str, name: str, slot: int = 0) -> str:
     source = f"{user_id}:{comparable_category_name(name)}"
+    if slot:
+        source = f"{source}:{slot}"
     return str(uuid.uuid5(uuid.NAMESPACE_URL, source))
+
+
+def available_category_id(
+    user_id: str,
+    name: str,
+    existing_items: list[dict[str, Any]],
+) -> str:
+    existing_ids = {item["categoryId"] for item in existing_items}
+    slot = 0
+    while True:
+        candidate = category_id_for_name(user_id, name, slot)
+        if candidate not in existing_ids:
+            return candidate
+        slot += 1
 
 
 def previous_entry(table: Any, user_id: str, before: datetime) -> dict[str, Any] | None:
@@ -200,7 +228,7 @@ def create_category(payload: CategoryCreate) -> CategoryRead:
                 detail=f"A category named '{name}' already exists",
             )
 
-        category_id = category_id_for_name(payload.user_id, name)
+        category_id = available_category_id(payload.user_id, name, items)
         item = {
             "PK": user_key(payload.user_id),
             "SK": f"CATEGORY#{category_id}",
@@ -229,10 +257,14 @@ def create_category(payload: CategoryCreate) -> CategoryRead:
 
 
 @app.patch("/categories/{category_id}", response_model=CategoryRead)
-def update_category_status(
+def update_category(
     category_id: str,
-    payload: CategoryStatusUpdate,
+    payload: CategoryUpdate,
 ) -> CategoryRead:
+    if payload.name is None and payload.isActive is None:
+        raise HTTPException(status_code=400, detail="Provide a category name or status update")
+
+    name = normalize_category_name(payload.name) if payload.name is not None else None
     try:
         table = get_table()
         key = {
@@ -243,11 +275,40 @@ def update_category_status(
         if existing is None:
             raise HTTPException(status_code=404, detail="Category does not exist")
 
+        if name is not None:
+            items = query_all(
+                table,
+                KeyConditionExpression=Key("PK").eq(user_key(payload.user_id))
+                & Key("SK").begins_with("CATEGORY#"),
+                ScanIndexForward=True,
+            )
+            if any(
+                item["categoryId"] != category_id
+                and comparable_category_name(item["name"]) == comparable_category_name(name)
+                for item in items
+            ):
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"A category named '{name}' already exists",
+                )
+
+        updates: list[str] = []
+        values: dict[str, Any] = {}
+        update_kwargs: dict[str, Any] = {}
+        if name is not None:
+            updates.append("#name = :name")
+            values[":name"] = name
+            update_kwargs["ExpressionAttributeNames"] = {"#name": "name"}
+        if payload.isActive is not None:
+            updates.append("isActive = :is_active")
+            values[":is_active"] = payload.isActive
+
         response = table.update_item(
             Key=key,
-            UpdateExpression="SET isActive = :is_active",
-            ExpressionAttributeValues={":is_active": payload.isActive},
+            UpdateExpression=f"SET {', '.join(updates)}",
+            ExpressionAttributeValues=values,
             ReturnValues="ALL_NEW",
+            **update_kwargs,
         )
         return category_read_from_item(response["Attributes"])
     except HTTPException:

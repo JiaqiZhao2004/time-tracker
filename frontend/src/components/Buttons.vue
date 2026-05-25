@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { categoryNameValidationError, normalizeCategoryName } from '../domain/categoryNames'
-import { createCategory, setCategoryActive } from '../services/api'
+import { createCategory, renameCategory, setCategoryActive } from '../services/api'
 import type { Category, DisplayCategory } from '../types/category'
 
 const props = defineProps<{
@@ -20,14 +20,28 @@ const inputError = ref('')
 const operationError = ref('')
 const isCreating = ref(false)
 const updatingCategoryId = ref<string | null>(null)
+const editingCategoryId = ref<string | null>(null)
+const renameCategoryName = ref('')
+const renameInputError = ref('')
+const isRenaming = ref(false)
 
 const activeCategories = computed(() => props.categories.filter((category) => category.isActive))
 const disabledCategories = computed(() => props.categories.filter((category) => !category.isActive))
+const operationInFlight = computed(
+  () => isCreating.value || updatingCategoryId.value !== null || isRenaming.value,
+)
+
+const cancelRename = () => {
+  editingCategoryId.value = null
+  renameCategoryName.value = ''
+  renameInputError.value = ''
+}
 
 const toggleEditing = () => {
   isEditing.value = !isEditing.value
   inputError.value = ''
   operationError.value = ''
+  cancelRename()
 }
 
 const handleCreateCategory = async () => {
@@ -46,6 +60,39 @@ const handleCreateCategory = async () => {
     operationError.value = error instanceof Error ? error.message : 'Failed to add category'
   } finally {
     isCreating.value = false
+  }
+}
+
+const startRename = (category: DisplayCategory) => {
+  operationError.value = ''
+  renameInputError.value = ''
+  editingCategoryId.value = category.categoryId
+  renameCategoryName.value = category.name
+}
+
+const handleRenameCategory = async (category: DisplayCategory) => {
+  const otherCategories = props.categories.filter((existing) => existing.categoryId !== category.categoryId)
+  renameInputError.value = categoryNameValidationError(renameCategoryName.value, otherCategories)
+  operationError.value = ''
+  if (renameInputError.value) {
+    return
+  }
+
+  const name = normalizeCategoryName(renameCategoryName.value)
+  if (name === normalizeCategoryName(category.name)) {
+    cancelRename()
+    return
+  }
+
+  isRenaming.value = true
+  try {
+    const updated = await renameCategory(category.categoryId, name)
+    emit('categoryChanged', updated)
+    cancelRename()
+  } catch (error) {
+    operationError.value = error instanceof Error ? error.message : 'Failed to rename category'
+  } finally {
+    isRenaming.value = false
   }
 }
 
@@ -83,7 +130,7 @@ const updateCategoryStatus = async (category: DisplayCategory, isActive: boolean
           placeholder="Category name"
           @input="inputError = ''"
         />
-        <button class="add-button" type="submit" :disabled="isCreating">
+        <button class="add-button" type="submit" :disabled="operationInFlight">
           {{ isCreating ? 'Adding...' : 'Add' }}
         </button>
       </div>
@@ -124,18 +171,45 @@ const updateCategoryStatus = async (category: DisplayCategory, isActive: boolean
           v-for="item in activeCategories"
           :key="item.categoryId"
           class="category-tile"
+          :class="{ renaming: editingCategoryId === item.categoryId }"
           :style="{ backgroundColor: item.color }"
         >
-          <span>{{ item.name }}</span>
-          <button
-            class="status-toggle"
-            type="button"
-            :aria-label="`Disable ${item.name}`"
-            :disabled="updatingCategoryId !== null"
-            @click="updateCategoryStatus(item, false)"
-          >
-            -
-          </button>
+          <form v-if="editingCategoryId === item.categoryId" class="rename-form" @submit.prevent="handleRenameCategory(item)">
+            <label :for="`rename-${item.categoryId}`">Rename {{ item.name }}</label>
+            <input
+              :id="`rename-${item.categoryId}`"
+              v-model="renameCategoryName"
+              type="text"
+              autocomplete="off"
+              @input="renameInputError = ''"
+            />
+            <div class="rename-actions">
+              <button class="save-button" type="submit" :disabled="isRenaming">Save</button>
+              <button class="cancel-button" type="button" :disabled="isRenaming" @click="cancelRename">Cancel</button>
+            </div>
+            <p v-if="renameInputError" class="feedback error">{{ renameInputError }}</p>
+          </form>
+          <template v-else>
+            <span>{{ item.name }}</span>
+            <button
+              class="rename-toggle"
+              type="button"
+              :aria-label="`Rename ${item.name}`"
+              :disabled="operationInFlight"
+              @click="startRename(item)"
+            >
+              Edit
+            </button>
+            <button
+              class="status-toggle"
+              type="button"
+              :aria-label="`Disable ${item.name}`"
+              :disabled="operationInFlight"
+              @click="updateCategoryStatus(item, false)"
+            >
+              -
+            </button>
+          </template>
         </div>
       </div>
 
@@ -146,18 +220,45 @@ const updateCategoryStatus = async (category: DisplayCategory, isActive: boolean
             v-for="item in disabledCategories"
             :key="item.categoryId"
             class="category-tile disabled"
+            :class="{ renaming: editingCategoryId === item.categoryId }"
             :style="{ '--category-color': item.color }"
           >
-            <span>{{ item.name }}</span>
-            <button
-              class="status-toggle"
-              type="button"
-              :aria-label="`Enable ${item.name}`"
-              :disabled="updatingCategoryId !== null"
-              @click="updateCategoryStatus(item, true)"
-            >
-              +
-            </button>
+            <form v-if="editingCategoryId === item.categoryId" class="rename-form" @submit.prevent="handleRenameCategory(item)">
+              <label :for="`rename-${item.categoryId}`">Rename {{ item.name }}</label>
+              <input
+                :id="`rename-${item.categoryId}`"
+                v-model="renameCategoryName"
+                type="text"
+                autocomplete="off"
+                @input="renameInputError = ''"
+              />
+              <div class="rename-actions">
+                <button class="save-button" type="submit" :disabled="isRenaming">Save</button>
+                <button class="cancel-button" type="button" :disabled="isRenaming" @click="cancelRename">Cancel</button>
+              </div>
+              <p v-if="renameInputError" class="feedback error">{{ renameInputError }}</p>
+            </form>
+            <template v-else>
+              <span>{{ item.name }}</span>
+              <button
+                class="rename-toggle"
+                type="button"
+                :aria-label="`Rename ${item.name}`"
+                :disabled="operationInFlight"
+                @click="startRename(item)"
+              >
+                Edit
+              </button>
+              <button
+                class="status-toggle"
+                type="button"
+                :aria-label="`Enable ${item.name}`"
+                :disabled="operationInFlight"
+                @click="updateCategoryStatus(item, true)"
+              >
+                +
+              </button>
+            </template>
           </div>
           <p v-if="disabledCategories.length === 0" class="empty-state">No disabled categories.</p>
         </div>
@@ -271,12 +372,36 @@ const updateCategoryStatus = async (category: DisplayCategory, isActive: boolean
   align-items: center;
 }
 
+.category-tile.renaming {
+  grid-column: span 2;
+  min-height: 126px;
+  padding: 0.8rem;
+}
+
 .category-tile.disabled {
   background: #14171c;
   border: 2px solid var(--category-color);
   color: #c4c8d0;
   box-shadow: none;
   opacity: 0.82;
+}
+
+.rename-toggle {
+  position: absolute;
+  bottom: -9px;
+  left: 10px;
+  border: 1px solid #1a1d23;
+  border-radius: 12px;
+  background: #f5f5f5;
+  color: #1a1d23;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.18rem 0.55rem;
+}
+
+.rename-toggle:disabled {
+  cursor: wait;
+  opacity: 0.55;
 }
 
 .status-toggle {
@@ -299,6 +424,64 @@ const updateCategoryStatus = async (category: DisplayCategory, isActive: boolean
 }
 
 .status-toggle:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.rename-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.38rem;
+  color: #f5f5f5;
+  font-weight: 500;
+}
+
+.rename-form label {
+  font-size: 0.77rem;
+  text-align: left;
+}
+
+.rename-form input {
+  background: #0f1115;
+  color: #f5f5f5;
+  border: 1px solid #2a2d35;
+  border-radius: 8px;
+  padding: 0.48rem 0.6rem;
+  font-size: 0.9rem;
+}
+
+.rename-form input:focus {
+  outline: none;
+  border-color: #6c63ff;
+}
+
+.rename-actions {
+  display: flex;
+  gap: 0.45rem;
+}
+
+.save-button,
+.cancel-button {
+  border-radius: 7px;
+  border: 1px solid transparent;
+  padding: 0.35rem 0.72rem;
+}
+
+.save-button {
+  background: #6c63ff;
+  color: #fff;
+}
+
+.cancel-button {
+  background: transparent;
+  border-color: #59606e;
+  color: #f5f5f5;
+}
+
+.save-button:disabled,
+.cancel-button:disabled {
   cursor: wait;
   opacity: 0.55;
 }

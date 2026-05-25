@@ -8,7 +8,7 @@ import pytest
 from botocore.exceptions import ClientError
 from fastapi.testclient import TestClient
 
-from backend.main import app, handler
+from backend.main import app, category_id_for_name, handler
 
 
 class FakeTable:
@@ -55,10 +55,11 @@ class FakeTable:
             )
         assert self.category is not None
         self.update_items.append(kwargs)
-        self.category = {
-            **self.category,
-            "isActive": kwargs["ExpressionAttributeValues"][":is_active"],
-        }
+        values = kwargs["ExpressionAttributeValues"]
+        if ":name" in values:
+            self.category = {**self.category, "name": values[":name"]}
+        if ":is_active" in values:
+            self.category = {**self.category, "isActive": values[":is_active"]}
         return {"Attributes": self.category}
 
 
@@ -172,7 +173,30 @@ def test_create_category_accepts_unicode_letters_and_allowed_punctuation(
     assert response.status_code == 201
 
 
-@pytest.mark.parametrize("name", [" ", "<script>", "Study/Play", "Study!"])
+@pytest.mark.parametrize(
+    "name",
+    ["Study 📚", "Family 👨‍👩‍👧", "Exercise 👍🏽", "Travel 🇯🇵", "Focus 1️⃣"],
+)
+def test_create_category_accepts_valid_emoji_sequences(
+    api: tuple[TestClient, FakeTable],
+    name: str,
+) -> None:
+    client, table = api
+    table.query_responses = [{"Items": []}]
+
+    response = client.post(
+        "/categories",
+        json={"user_id": "student", "name": name},
+    )
+
+    assert response.status_code == 201
+    assert response.json()["name"] == name
+
+
+@pytest.mark.parametrize(
+    "name",
+    [" ", "<script>", "Study/Play", "Study!", "Study \u200d", "Study \ufe0f", "Study 🏽"],
+)
 def test_create_category_rejects_invalid_names(
     api: tuple[TestClient, FakeTable],
     name: str,
@@ -222,6 +246,23 @@ def test_create_category_rejects_concurrent_duplicate_write(
     assert "already exists" in response.json()["detail"]
 
 
+def test_create_category_reuses_released_name_with_new_id(
+    api: tuple[TestClient, FakeTable],
+) -> None:
+    client, table = api
+    original_id = category_id_for_name("student", "Work")
+    table.query_responses = [{"Items": [category(original_id, "Client Work")]}]
+
+    response = client.post(
+        "/categories",
+        json={"user_id": "student", "name": "Work"},
+    )
+
+    assert response.status_code == 201
+    assert response.json()["name"] == "Work"
+    assert response.json()["categoryId"] != original_id
+
+
 def test_update_category_status_disables_and_returns_category(
     api: tuple[TestClient, FakeTable],
 ) -> None:
@@ -255,6 +296,72 @@ def test_update_category_status_reenables_category(
 
     assert response.status_code == 200
     assert response.json()["isActive"] is True
+
+
+def test_update_category_name_normalizes_and_preserves_category_id(
+    api: tuple[TestClient, FakeTable],
+) -> None:
+    client, table = api
+    table.category = category("research", "Research")
+    table.query_responses = [{"Items": [table.category]}]
+
+    response = client.patch(
+        "/categories/research",
+        json={"user_id": "student", "name": "  Study   📚  "},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "categoryId": "research",
+        "name": "Study 📚",
+        "isActive": True,
+    }
+    assert table.update_items[0]["ExpressionAttributeValues"] == {":name": "Study 📚"}
+
+
+def test_update_disabled_category_name_and_status_together(
+    api: tuple[TestClient, FakeTable],
+) -> None:
+    client, table = api
+    table.category = category("rest", "Rest", False)
+    table.query_responses = [{"Items": [table.category]}]
+
+    response = client.patch(
+        "/categories/rest",
+        json={"user_id": "student", "name": "Break ☕", "isActive": True},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["name"] == "Break ☕"
+    assert response.json()["isActive"] is True
+
+
+def test_update_category_name_rejects_existing_name(
+    api: tuple[TestClient, FakeTable],
+) -> None:
+    client, table = api
+    table.category = category("research", "Research")
+    table.query_responses = [{"Items": [table.category, category("focus", "Focus 📚", False)]}]
+
+    response = client.patch(
+        "/categories/research",
+        json={"user_id": "student", "name": " focus 📚 "},
+    )
+
+    assert response.status_code == 409
+    assert table.update_items == []
+
+
+def test_update_category_rejects_empty_update(api: tuple[TestClient, FakeTable]) -> None:
+    client, table = api
+
+    response = client.patch(
+        "/categories/research",
+        json={"user_id": "student"},
+    )
+
+    assert response.status_code == 400
+    assert table.update_items == []
 
 
 def test_update_category_status_rejects_missing_category(
@@ -326,6 +433,31 @@ def test_create_entry_saves_v2_item_in_utc(api: tuple[TestClient, FakeTable]) ->
     assert saved["SK"] == "ENTRY#2024-01-02T09:00:00+00:00"
     assert saved["categoryNameSnapshot"] == "Research"
     assert saved["schemaVersion"] == 2
+
+
+def test_create_entry_after_rename_snapshots_current_category_name(
+    api: tuple[TestClient, FakeTable],
+) -> None:
+    client, table = api
+    table.category = category("research", "Research")
+    table.query_responses = [{"Items": [table.category]}]
+
+    rename_response = client.patch(
+        "/categories/research",
+        json={"user_id": "student", "name": "Study 📚"},
+    )
+    entry_response = client.post(
+        "/entries",
+        json={
+            "user_id": "student",
+            "categoryId": "research",
+            "timestamp": "2024-01-02T09:00:00Z",
+        },
+    )
+
+    assert rename_response.status_code == 200
+    assert entry_response.status_code == 200
+    assert table.put_items[0]["categoryNameSnapshot"] == "Study 📚"
 
 
 def test_create_entry_rejects_missing_category(api: tuple[TestClient, FakeTable]) -> None:
