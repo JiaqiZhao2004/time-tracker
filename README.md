@@ -56,6 +56,11 @@ python -m venv .venv
 .venv/bin/uvicorn backend.main:app --reload
 ```
 
+For AWS Lambda behind API Gateway, package the backend with its runtime
+dependencies and configure the handler as `backend.main.handler` (or
+`main.handler` when the contents of `backend/` are at the deployment root).
+The handler uses `Mangum` to run the same FastAPI routes in Lambda.
+
 Its v2 endpoints require user-scoped category IDs:
 
 - `GET /categories` accepts `user_id` and returns active and inactive category definitions.

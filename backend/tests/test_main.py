@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
 from typing import Any
 
@@ -7,7 +8,7 @@ import pytest
 from botocore.exceptions import ClientError
 from fastapi.testclient import TestClient
 
-from backend.main import app
+from backend.main import app, handler
 
 
 class FakeTable:
@@ -114,6 +115,39 @@ def test_categories_return_server_error_on_dynamodb_failure(
 
     assert response.status_code == 500
     assert "DynamoDB error" in response.json()["detail"]
+
+
+def test_lambda_handler_accepts_api_gateway_http_api_event(
+    api: tuple[TestClient, FakeTable],
+) -> None:
+    _, table = api
+    table.query_responses = [{"Items": [category("research", "Research")]}]
+
+    response = handler(
+        {
+            "version": "2.0",
+            "routeKey": "GET /categories",
+            "rawPath": "/categories",
+            "rawQueryString": "user_id=student",
+            "headers": {"host": "example.execute-api.us-east-2.amazonaws.com"},
+            "requestContext": {
+                "http": {
+                    "method": "GET",
+                    "path": "/categories",
+                    "protocol": "HTTP/1.1",
+                    "sourceIp": "127.0.0.1",
+                    "userAgent": "pytest",
+                }
+            },
+            "isBase64Encoded": False,
+        },
+        {},
+    )
+
+    assert response["statusCode"] == 200
+    assert json.loads(response["body"]) == [
+        {"categoryId": "research", "name": "Research", "isActive": True}
+    ]
 
 
 def test_create_entry_saves_v2_item_in_utc(api: tuple[TestClient, FakeTable]) -> None:

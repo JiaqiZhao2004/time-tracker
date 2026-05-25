@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import uuid
 from datetime import UTC, date as Date, datetime, timedelta
 from typing import Any
@@ -10,6 +11,7 @@ from boto3.dynamodb.conditions import Key
 from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from mangum import Mangum
 from pydantic import AwareDatetime, BaseModel, Field, field_validator
 
 
@@ -240,3 +242,15 @@ def get_entries_local(
         )
     except (BotoCoreError, ClientError) as error:
         raise dynamodb_failure(error) from error
+
+
+lambda_app = Mangum(app, lifespan="off")
+
+
+def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
+    # Mangum expects a current event loop, which Python 3.14 no longer creates.
+    try:
+        asyncio.get_event_loop()
+    except RuntimeError:
+        asyncio.set_event_loop(asyncio.new_event_loop())
+    return lambda_app(event, context)
