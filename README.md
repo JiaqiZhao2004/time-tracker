@@ -6,10 +6,10 @@ A modern, cloud-native time tracking application built with a serverless archite
 
 ## Architecture Overview
 
-**Frontend**: Vue 3 + TypeScript + Vite, deployed to S3 + CloudFront via GitHub Actions  
-**Backend**: AWS Lambda (Python 3.11+) + API Gateway  
-**Database**: DynamoDB with single-table design  
-**CI/CD**: GitHub Actions for automated frontend deployment
+- **Frontend**: Vue 3 + TypeScript + Vite, deployed to S3 + CloudFront via GitHub Actions
+- **Backend**: AWS Lambda (Python 3.14) + API Gateway
+- **Database**: DynamoDB with single-table design
+- **CI/CD**: GitHub Actions for independent frontend and backend deployment
 
 ## Features
 
@@ -90,6 +90,23 @@ sam deploy
 SAM asks whether `TimeTrackerBackendFunction` can remain unauthenticated once
 for each public HTTP API route. This application currently relies on public
 API endpoints, so accept those prompts only when that is intended.
+
+#### Automated Backend Deployment
+
+Pushes to `main` that change `backend/**`, `template.yaml`, or
+`samconfig.toml` run `.github/workflows/deploy-backend.yml`. The workflow runs
+the backend test suite, validates and container-builds the SAM application,
+then runs an unattended `sam deploy` against the existing
+`time-tracker-sam-app` stack. Frontend-only pushes continue through the
+separate S3 and CloudFront workflow.
+
+The backend workflow assumes the dedicated OIDC role
+`arn:aws:iam::975050092888:role/GitHubActionsSamDeploy`. Configure that IAM
+role outside this stack with trust restricted to the `main` branch of
+`JiaqiZhao2004/time-tracker`, and grant the CloudFormation, Lambda, API
+Gateway, IAM, and SAM artifact-bucket permissions required to update this SAM
+application. The existing `GitHubActionsS3Deploy` role remains scoped to the
+frontend deployment.
 
 #### Troubleshooting SAM Uploads
 
