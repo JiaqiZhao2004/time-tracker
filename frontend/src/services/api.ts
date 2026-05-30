@@ -3,8 +3,15 @@
  */
 import type { Category } from "../types/category";
 import type { Entry } from "../types/entry";
+import { getAuthorizationHeader } from "./auth";
 
 export type EntriesPeriod = "day" | "week";
+
+export type UserProfile = {
+  userId: string;
+  email: string;
+  displayName: string;
+};
 
 export type EntriesLocalResponse = {
   period?: EntriesPeriod;
@@ -13,7 +20,13 @@ export type EntriesLocalResponse = {
 };
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
-const USER_ID = "roy";
+
+const requestHeaders = async (
+  headers: Record<string, string> = {},
+): Promise<Record<string, string>> => ({
+  ...headers,
+  ...(await getAuthorizationHeader()),
+});
 
 const errorMessage = async (response: Response, fallback: string): Promise<string> => {
   try {
@@ -32,9 +45,36 @@ const errorMessage = async (response: Response, fallback: string): Promise<strin
   return fallback;
 };
 
+export const fetchMe = async (): Promise<UserProfile> => {
+  const response = await fetch(`${API_BASE}/me`, {
+    headers: await requestHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error(await errorMessage(response, "Failed to load profile"));
+  }
+
+  return response.json();
+};
+
+export const updateMe = async (displayName: string): Promise<UserProfile> => {
+  const response = await fetch(`${API_BASE}/me`, {
+    method: "PATCH",
+    headers: await requestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ displayName }),
+  });
+
+  if (!response.ok) {
+    throw new Error(await errorMessage(response, "Failed to update profile"));
+  }
+
+  return response.json();
+};
+
 export const fetchCategories = async (): Promise<Category[]> => {
-  const params = new URLSearchParams({ user_id: USER_ID });
-  const response = await fetch(`${API_BASE}/categories?${params.toString()}`);
+  const response = await fetch(`${API_BASE}/categories`, {
+    headers: await requestHeaders(),
+  });
 
   if (!response.ok) {
     throw new Error(await errorMessage(response, "Failed to load categories"));
@@ -46,8 +86,8 @@ export const fetchCategories = async (): Promise<Category[]> => {
 export const createCategory = async (name: string): Promise<Category> => {
   const response = await fetch(`${API_BASE}/categories`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ user_id: USER_ID, name }),
+    headers: await requestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ name }),
   });
 
   if (!response.ok) {
@@ -63,8 +103,8 @@ export const setCategoryActive = async (
 ): Promise<Category> => {
   const response = await fetch(`${API_BASE}/categories/${encodeURIComponent(categoryId)}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ user_id: USER_ID, isActive }),
+    headers: await requestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ isActive }),
   });
 
   if (!response.ok) {
@@ -80,8 +120,8 @@ export const renameCategory = async (
 ): Promise<Category> => {
   const response = await fetch(`${API_BASE}/categories/${encodeURIComponent(categoryId)}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ user_id: USER_ID, name }),
+    headers: await requestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ name }),
   });
 
   if (!response.ok) {
@@ -100,8 +140,8 @@ export const postEntry = async (
 ): Promise<Entry> => {
   const response = await fetch(`${API_BASE}/entries`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ user_id: USER_ID, categoryId, timestamp }),
+    headers: await requestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ categoryId, timestamp }),
   });
 
   if (!response.ok) {
@@ -119,9 +159,10 @@ export const fetchEntriesLocal = async (
   date: string,
   period: EntriesPeriod = "day",
 ): Promise<EntriesLocalResponse> => {
-  const params = new URLSearchParams({ user_id: USER_ID, timezone, date, period });
+  const params = new URLSearchParams({ timezone, date, period });
   const response = await fetch(
     `${API_BASE}/entries-local?${params.toString()}`,
+    { headers: await requestHeaders() },
   );
 
   if (!response.ok) {

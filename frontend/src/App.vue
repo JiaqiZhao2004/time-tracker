@@ -8,7 +8,8 @@ import Timer from './components/Timer.vue'
 import { projectDailyTimeline, projectTimelineRange } from './domain/dailyTimeline'
 import { resolveDisplayEntries } from './domain/displayEntries'
 import { localDayContaining, localWeekContaining, localWeekDates, shiftLocalDay, todayLocalDay } from './domain/localDay'
-import { fetchCategories, fetchEntriesLocal, fetchEntriesLocalWeek, postEntry, type EntriesLocalResponse, type EntriesPeriod } from './services/api'
+import { completeSignIn, getSignedInUser, isAuthConfigured, signIn, signOut } from './services/auth'
+import { fetchCategories, fetchEntriesLocal, fetchEntriesLocalWeek, fetchMe, postEntry, updateMe, type EntriesLocalResponse, type EntriesPeriod, type UserProfile } from './services/api'
 import { displayCategory, type Category, type DisplayCategory } from './types/category'
 import type { Entry } from './types/entry'
 
@@ -17,6 +18,13 @@ type HourMark = {
   left: string
 }
 
+type AuthStatus = 'checking' | 'signedOut' | 'signedIn'
+
+const authStatus = ref<AuthStatus>('checking')
+const authErrorMessage = ref('')
+const profile = ref<UserProfile | null>(null)
+const profileErrorMessage = ref('')
+const isProfileSaving = ref(false)
 const categories = ref<DisplayCategory[]>([])
 const entries = ref<Entry[]>([])
 const isLoading = ref(false)
@@ -255,6 +263,70 @@ const setSummaryPeriod = (period: EntriesPeriod) => {
   }
 }
 
+const initializeAuthenticatedApp = async () => {
+  authStatus.value = 'signedIn'
+  profile.value = await fetchMe()
+  await loadInitialData()
+}
+
+const initializeAuth = async () => {
+  authErrorMessage.value = ''
+  if (!isAuthConfigured) {
+    authStatus.value = 'signedOut'
+    authErrorMessage.value = 'Authentication is not configured'
+    return
+  }
+
+  try {
+    const callbackParams = new URLSearchParams(window.location.search)
+    if (callbackParams.has('code') && callbackParams.has('state')) {
+      await completeSignIn()
+      window.history.replaceState({}, document.title, '/')
+    }
+
+    const user = await getSignedInUser()
+    if (!user) {
+      authStatus.value = 'signedOut'
+      return
+    }
+
+    await initializeAuthenticatedApp()
+  } catch (error) {
+    authStatus.value = 'signedOut'
+    authErrorMessage.value = error instanceof Error ? error.message : 'Failed to sign in'
+  }
+}
+
+const handleSignIn = async () => {
+  authErrorMessage.value = ''
+  try {
+    await signIn()
+  } catch (error) {
+    authErrorMessage.value = error instanceof Error ? error.message : 'Failed to start sign in'
+  }
+}
+
+const handleSignOut = async () => {
+  authErrorMessage.value = ''
+  try {
+    await signOut()
+  } catch (error) {
+    authErrorMessage.value = error instanceof Error ? error.message : 'Failed to sign out'
+  }
+}
+
+const handleProfileUpdate = async (displayName: string) => {
+  profileErrorMessage.value = ''
+  isProfileSaving.value = true
+  try {
+    profile.value = await updateMe(displayName)
+  } catch (error) {
+    profileErrorMessage.value = error instanceof Error ? error.message : 'Failed to update profile'
+  } finally {
+    isProfileSaving.value = false
+  }
+}
+
 onMounted(() => {
   const storedCategoryId = localStorage.getItem('lastCategoryId')
   if (storedCategoryId) {
@@ -268,6 +340,7 @@ onMounted(() => {
   tickerId = window.setInterval(() => {
     now.value = new Date()
   }, 1000)
+  initializeAuth()
 })
 
 onUnmounted(() => {
@@ -278,8 +351,28 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="app">
-    <Header :dayLabel="selectedDay.label" @shiftDay="shiftDay" @goToToday="goToToday" />
+  <div v-if="authStatus === 'checking'" class="app auth-screen">
+    <h1>Time Tracker</h1>
+    <p>Loading...</p>
+  </div>
+
+  <div v-else-if="authStatus === 'signedOut'" class="app auth-screen">
+    <h1>Time Tracker</h1>
+    <button class="primary-auth" type="button" @click="handleSignIn">Sign in with Google</button>
+    <p v-if="authErrorMessage" class="auth-error">{{ authErrorMessage }}</p>
+  </div>
+
+  <div v-else class="app">
+    <Header
+      :dayLabel="selectedDay.label"
+      :displayName="profile?.displayName ?? ''"
+      :profileErrorMessage="profileErrorMessage"
+      :isProfileSaving="isProfileSaving"
+      @shiftDay="shiftDay"
+      @goToToday="goToToday"
+      @signOut="handleSignOut"
+      @displayNameChange="handleProfileUpdate"
+    />
 
     <Buttons
       :categories="categories"
@@ -323,5 +416,38 @@ onUnmounted(() => {
   max-width: 1100px;
   margin: 0 auto;
   padding: 2.5rem 1.5rem 4rem;
+}
+
+.auth-screen {
+  min-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.auth-screen h1 {
+  margin: 0;
+  font-size: 2.2rem;
+}
+
+.auth-screen p {
+  margin: 0;
+  color: #b1b7c3;
+}
+
+.primary-auth {
+  border: 0;
+  background: #f5f5f5;
+  color: #0f1115;
+  padding: 0.7rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.auth-error {
+  color: #ffb4b4;
 }
 </style>
