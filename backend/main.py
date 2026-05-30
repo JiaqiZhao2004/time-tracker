@@ -4,6 +4,7 @@ import asyncio
 import os
 import unicodedata
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, date as Date, datetime, timedelta
 from typing import Any, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -12,7 +13,7 @@ import boto3
 import regex
 from boto3.dynamodb.conditions import Key
 from botocore.exceptions import BotoCoreError, ClientError
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
 from pydantic import AwareDatetime, BaseModel, Field, field_validator
@@ -32,7 +33,6 @@ CATEGORY_NAME_PATTERN = regex.compile(
 
 
 class EntryCreate(BaseModel):
-    user_id: str = Field(..., min_length=1)
     categoryId: str = Field(..., min_length=1)
     timestamp: AwareDatetime = Field(..., description="RFC 3339 datetime with timezone")
 
@@ -55,12 +55,10 @@ class CategoryRead(BaseModel):
 
 
 class CategoryCreate(BaseModel):
-    user_id: str = Field(..., min_length=1)
     name: str
 
 
 class CategoryUpdate(BaseModel):
-    user_id: str = Field(..., min_length=1)
     name: str | None = None
     isActive: bool | None = None
 
@@ -69,6 +67,23 @@ class EntriesLocalResponse(BaseModel):
     period: Literal["day", "week"]
     prevEntryCategoryId: str | None = None
     entries: list[EntryRead]
+
+
+class UserProfile(BaseModel):
+    userId: str
+    email: str
+    displayName: str
+
+
+class UserProfileUpdate(BaseModel):
+    displayName: str = Field(..., min_length=1)
+
+
+@dataclass(frozen=True)
+class AuthenticatedUser:
+    user_id: str
+    email: str
+    display_name: str | None = None
 
 
 app = FastAPI(title="Time Tracker API")
@@ -83,6 +98,55 @@ app.add_middleware(
 )
 
 
+def allowed_user_emails() -> set[str]:
+    return {
+        email.strip().casefold()
+        for email in os.getenv("ALLOWED_USER_EMAILS", "").split(",")
+        if email.strip()
+    }
+
+
+def normalize_display_name(name: str) -> str:
+    normalized = " ".join(unicodedata.normalize("NFC", name).split())
+    if not normalized:
+        raise HTTPException(status_code=400, detail="Display name cannot be blank")
+    if len(normalized) > 80:
+        raise HTTPException(status_code=400, detail="Display name cannot exceed 80 characters")
+    return normalized
+
+
+def current_user(request: Request) -> AuthenticatedUser:
+    dev_user_id = os.getenv("DEV_AUTH_USER_ID")
+    if dev_user_id:
+        return AuthenticatedUser(
+            user_id=dev_user_id,
+            email=os.getenv("DEV_AUTH_EMAIL", "dev@example.com"),
+            display_name=os.getenv("DEV_AUTH_DISPLAY_NAME"),
+        )
+
+    event = request.scope.get("aws.event") or {}
+    claims = (
+        event.get("requestContext", {})
+        .get("authorizer", {})
+        .get("jwt", {})
+        .get("claims", {})
+    )
+    if not isinstance(claims, dict):
+        claims = {}
+
+    user_id = claims.get("sub")
+    email = claims.get("email")
+    if not isinstance(user_id, str) or not user_id or not isinstance(email, str) or not email:
+        raise HTTPException(status_code=401, detail="Missing authenticated user")
+
+    allowlist = allowed_user_emails()
+    if not allowlist or email.casefold() not in allowlist:
+        raise HTTPException(status_code=403, detail="User is not allowed to access this app")
+
+    display_name = claims.get("name") if isinstance(claims.get("name"), str) else None
+    return AuthenticatedUser(user_id=user_id, email=email, display_name=display_name)
+
+
 def get_table() -> Any:
     """Return one cached DynamoDB table resource for application requests."""
     if app.state.table is None:
@@ -92,6 +156,11 @@ def get_table() -> Any:
 
 def user_key(user_id: str) -> str:
     return f"USER#{user_id}"
+
+
+def user_profile_key(user_id: str) -> dict[str, str]:
+    key = user_key(user_id)
+    return {"PK": key, "SK": key}
 
 
 def entry_key(value: datetime) -> str:
@@ -118,6 +187,14 @@ def category_read_from_item(item: dict[str, Any]) -> CategoryRead:
         categoryId=item["categoryId"],
         name=item["name"],
         isActive=item["isActive"],
+    )
+
+
+def user_profile_from_item(item: dict[str, Any]) -> UserProfile:
+    return UserProfile(
+        userId=item["userId"],
+        email=item["email"],
+        displayName=item["displayName"],
     )
 
 
@@ -192,13 +269,81 @@ def dynamodb_failure(error: Exception) -> HTTPException:
     return HTTPException(status_code=500, detail=f"DynamoDB error: {error}")
 
 
+@app.get("/me", response_model=UserProfile)
+def get_me(user: AuthenticatedUser = Depends(current_user)) -> UserProfile:
+    try:
+        table = get_table()
+        key = user_profile_key(user.user_id)
+        existing = table.get_item(Key=key).get("Item")
+        if existing is not None:
+            return user_profile_from_item(existing)
+
+        now = datetime.now(UTC).isoformat()
+        display_name = normalize_display_name(
+            user.display_name or user.email.split("@", 1)[0] or "Time Tracker User"
+        )
+        item = {
+            **key,
+            "entityType": "User",
+            "userId": user.user_id,
+            "email": user.email,
+            "displayName": display_name,
+            "createdAt": now,
+            "updatedAt": now,
+            "schemaVersion": 1,
+        }
+        table.put_item(
+            Item=item,
+            ConditionExpression="attribute_not_exists(PK) AND attribute_not_exists(SK)",
+        )
+        return user_profile_from_item(item)
+    except ClientError as error:
+        if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+            existing = get_table().get_item(Key=user_profile_key(user.user_id)).get("Item")
+            if existing is not None:
+                return user_profile_from_item(existing)
+        raise dynamodb_failure(error) from error
+    except BotoCoreError as error:
+        raise dynamodb_failure(error) from error
+
+
+@app.patch("/me", response_model=UserProfile)
+def update_me(
+    payload: UserProfileUpdate,
+    user: AuthenticatedUser = Depends(current_user),
+) -> UserProfile:
+    display_name = normalize_display_name(payload.displayName)
+    try:
+        table = get_table()
+        response = table.update_item(
+            Key=user_profile_key(user.user_id),
+            UpdateExpression=(
+                "SET displayName = :display_name, email = :email, "
+                "updatedAt = :updated_at, entityType = :entity_type, "
+                "userId = :user_id, schemaVersion = :schema_version"
+            ),
+            ExpressionAttributeValues={
+                ":display_name": display_name,
+                ":email": user.email,
+                ":updated_at": datetime.now(UTC).isoformat(),
+                ":entity_type": "User",
+                ":user_id": user.user_id,
+                ":schema_version": 1,
+            },
+            ReturnValues="ALL_NEW",
+        )
+        return user_profile_from_item(response["Attributes"])
+    except (BotoCoreError, ClientError) as error:
+        raise dynamodb_failure(error) from error
+
+
 @app.get("/categories", response_model=list[CategoryRead])
-def get_categories(user_id: str = Query(..., min_length=1)) -> list[CategoryRead]:
+def get_categories(user: AuthenticatedUser = Depends(current_user)) -> list[CategoryRead]:
     try:
         table = get_table()
         items = query_all(
             table,
-            KeyConditionExpression=Key("PK").eq(user_key(user_id))
+            KeyConditionExpression=Key("PK").eq(user_key(user.user_id))
             & Key("SK").begins_with("CATEGORY#"),
             ScanIndexForward=True,
         )
@@ -209,13 +354,17 @@ def get_categories(user_id: str = Query(..., min_length=1)) -> list[CategoryRead
 
 
 @app.post("/categories", response_model=CategoryRead, status_code=201)
-def create_category(payload: CategoryCreate) -> CategoryRead:
+def create_category(
+    payload: CategoryCreate,
+    user: AuthenticatedUser = Depends(current_user),
+) -> CategoryRead:
     name = normalize_category_name(payload.name)
     try:
         table = get_table()
+        user_id = user.user_id
         items = query_all(
             table,
-            KeyConditionExpression=Key("PK").eq(user_key(payload.user_id))
+            KeyConditionExpression=Key("PK").eq(user_key(user_id))
             & Key("SK").begins_with("CATEGORY#"),
             ScanIndexForward=True,
         )
@@ -228,9 +377,9 @@ def create_category(payload: CategoryCreate) -> CategoryRead:
                 detail=f"A category named '{name}' already exists",
             )
 
-        category_id = available_category_id(payload.user_id, name, items)
+        category_id = available_category_id(user_id, name, items)
         item = {
-            "PK": user_key(payload.user_id),
+            "PK": user_key(user_id),
             "SK": f"CATEGORY#{category_id}",
             "entityType": "Category",
             "categoryId": category_id,
@@ -260,6 +409,7 @@ def create_category(payload: CategoryCreate) -> CategoryRead:
 def update_category(
     category_id: str,
     payload: CategoryUpdate,
+    user: AuthenticatedUser = Depends(current_user),
 ) -> CategoryRead:
     if payload.name is None and payload.isActive is None:
         raise HTTPException(status_code=400, detail="Provide a category name or status update")
@@ -268,7 +418,7 @@ def update_category(
     try:
         table = get_table()
         key = {
-            "PK": user_key(payload.user_id),
+            "PK": user_key(user.user_id),
             "SK": f"CATEGORY#{category_id}",
         }
         existing = table.get_item(Key=key).get("Item")
@@ -278,7 +428,7 @@ def update_category(
         if name is not None:
             items = query_all(
                 table,
-                KeyConditionExpression=Key("PK").eq(user_key(payload.user_id))
+                KeyConditionExpression=Key("PK").eq(user_key(user.user_id))
                 & Key("SK").begins_with("CATEGORY#"),
                 ScanIndexForward=True,
             )
@@ -318,7 +468,10 @@ def update_category(
 
 
 @app.post("/entries", response_model=EntryRead)
-def create_entry(payload: EntryCreate) -> EntryRead:
+def create_entry(
+    payload: EntryCreate,
+    user: AuthenticatedUser = Depends(current_user),
+) -> EntryRead:
     timestamp_utc = payload.timestamp.astimezone(UTC)
     if timestamp_utc > datetime.now(UTC):
         raise HTTPException(status_code=400, detail="Cannot add entry in the future")
@@ -327,7 +480,7 @@ def create_entry(payload: EntryCreate) -> EntryRead:
         table = get_table()
         category_response = table.get_item(
             Key={
-                "PK": user_key(payload.user_id),
+                "PK": user_key(user.user_id),
                 "SK": f"CATEGORY#{payload.categoryId}",
             }
         )
@@ -343,7 +496,7 @@ def create_entry(payload: EntryCreate) -> EntryRead:
                 detail=f"Cannot add entry: this category '{payload.categoryId}' is inactive",
             )
 
-        preceding = previous_entry(table, payload.user_id, timestamp_utc)
+        preceding = previous_entry(table, user.user_id, timestamp_utc)
         if preceding and preceding["categoryId"] == payload.categoryId:
             raise HTTPException(
                 status_code=400,
@@ -354,7 +507,7 @@ def create_entry(payload: EntryCreate) -> EntryRead:
             )
 
         item = {
-            "PK": user_key(payload.user_id),
+            "PK": user_key(user.user_id),
             "SK": entry_key(timestamp_utc),
             "entityType": "TimeEntry",
             "id": str(uuid.uuid4()),
@@ -373,10 +526,10 @@ def create_entry(payload: EntryCreate) -> EntryRead:
 
 @app.get("/entries-local", response_model=EntriesLocalResponse)
 def get_entries_local(
-    user_id: str = Query(..., min_length=1),
     timezone: str = Query(..., min_length=1),
     date: str = Query(..., min_length=1),
     period: Literal["day", "week"] = Query("day"),
+    user: AuthenticatedUser = Depends(current_user),
 ) -> EntriesLocalResponse:
     try:
         local_timezone = ZoneInfo(timezone)
@@ -402,7 +555,7 @@ def get_entries_local(
         table = get_table()
         items = query_all(
             table,
-            KeyConditionExpression=Key("PK").eq(user_key(user_id))
+            KeyConditionExpression=Key("PK").eq(user_key(user.user_id))
             & Key("SK").between(entry_key(start_utc), entry_key(end_utc)),
             ScanIndexForward=True,
         )
@@ -411,7 +564,7 @@ def get_entries_local(
             for item in items
             if start_utc <= datetime_from_item(item) < end_utc
         ]
-        preceding = previous_entry(table, user_id, start_utc)
+        preceding = previous_entry(table, user.user_id, start_utc)
         return EntriesLocalResponse(
             period=period,
             prevEntryCategoryId=preceding["categoryId"] if preceding else None,

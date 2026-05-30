@@ -14,6 +14,7 @@ from backend.main import app, category_id_for_name, handler
 class FakeTable:
     def __init__(self) -> None:
         self.category: dict[str, Any] | None = {"name": "Research", "isActive": True}
+        self.user_profile: dict[str, Any] | None = None
         self.query_responses: list[dict[str, Any]] = []
         self.put_items: list[dict[str, Any]] = []
         self.update_items: list[dict[str, Any]] = []
@@ -26,6 +27,9 @@ class FakeTable:
                 {"Error": {"Code": "InternalError", "Message": "unavailable"}},
                 "GetItem",
             )
+        key = kwargs.get("Key", {})
+        if key.get("SK", "").startswith("USER#"):
+            return {"Item": self.user_profile} if self.user_profile else {}
         return {"Item": self.category} if self.category else {}
 
     def query(self, **kwargs: Any) -> dict[str, Any]:
@@ -45,6 +49,8 @@ class FakeTable:
                 "PutItem",
             )
         self.put_items.append(kwargs["Item"])
+        if kwargs["Item"].get("entityType") == "User":
+            self.user_profile = kwargs["Item"]
         return {}
 
     def update_item(self, **kwargs: Any) -> dict[str, Any]:
@@ -53,9 +59,22 @@ class FakeTable:
                 {"Error": {"Code": "InternalError", "Message": "unavailable"}},
                 "UpdateItem",
             )
-        assert self.category is not None
         self.update_items.append(kwargs)
+        key = kwargs.get("Key", {})
         values = kwargs["ExpressionAttributeValues"]
+        if key.get("SK", "").startswith("USER#"):
+            self.user_profile = {
+                **key,
+                "entityType": values.get(":entity_type", "User"),
+                "userId": values[":user_id"],
+                "email": values[":email"],
+                "displayName": values[":display_name"],
+                "updatedAt": values[":updated_at"],
+                "schemaVersion": values.get(":schema_version", 1),
+            }
+            return {"Attributes": self.user_profile}
+
+        assert self.category is not None
         if ":name" in values:
             self.category = {**self.category, "name": values[":name"]}
         if ":is_active" in values:
@@ -64,7 +83,10 @@ class FakeTable:
 
 
 @pytest.fixture
-def api() -> Iterator[tuple[TestClient, FakeTable]]:
+def api(monkeypatch: pytest.MonkeyPatch) -> Iterator[tuple[TestClient, FakeTable]]:
+    monkeypatch.setenv("DEV_AUTH_USER_ID", "student")
+    monkeypatch.setenv("DEV_AUTH_EMAIL", "student@example.com")
+    monkeypatch.setenv("DEV_AUTH_DISPLAY_NAME", "Student")
     table = FakeTable()
     app.state.table = table
     with TestClient(app) as client:
@@ -101,6 +123,99 @@ def category(category_id: str, name: str, is_active: bool = True) -> dict[str, A
     }
 
 
+def api_gateway_event(
+    path: str,
+    method: str = "GET",
+    claims: dict[str, str] | None = None,
+    body: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    event: dict[str, Any] = {
+        "version": "2.0",
+        "routeKey": f"{method} {path}",
+        "rawPath": path,
+        "rawQueryString": "",
+        "headers": {"host": "example.execute-api.us-east-2.amazonaws.com"},
+        "requestContext": {
+            "http": {
+                "method": method,
+                "path": path,
+                "protocol": "HTTP/1.1",
+                "sourceIp": "127.0.0.1",
+                "userAgent": "pytest",
+            }
+        },
+        "isBase64Encoded": False,
+    }
+    if claims is not None:
+        event["requestContext"]["authorizer"] = {"jwt": {"claims": claims}}
+    if body is not None:
+        event["headers"]["content-type"] = "application/json"
+        event["body"] = json.dumps(body)
+    return event
+
+
+def test_missing_auth_claims_return_unauthorized(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("DEV_AUTH_USER_ID", raising=False)
+    app.state.table = FakeTable()
+    with TestClient(app) as client:
+        response = client.get("/categories")
+    app.state.table = None
+
+    assert response.status_code == 401
+
+
+def test_non_allowlisted_email_returns_forbidden(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("DEV_AUTH_USER_ID", raising=False)
+    monkeypatch.setenv("ALLOWED_USER_EMAILS", "roy@example.com")
+    app.state.table = FakeTable()
+
+    response = handler(
+        api_gateway_event(
+            "/categories",
+            claims={"sub": "other-user", "email": "other@example.com"},
+        ),
+        {},
+    )
+    app.state.table = None
+
+    assert response["statusCode"] == 403
+
+
+def test_me_creates_profile_from_authenticated_user(
+    api: tuple[TestClient, FakeTable],
+) -> None:
+    client, table = api
+
+    response = client.get("/me")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "userId": "student",
+        "email": "student@example.com",
+        "displayName": "Student",
+    }
+    saved = table.put_items[0]
+    assert saved["PK"] == "USER#student"
+    assert saved["SK"] == "USER#student"
+    assert saved["entityType"] == "User"
+
+
+def test_me_updates_display_name(
+    api: tuple[TestClient, FakeTable],
+) -> None:
+    client, table = api
+
+    response = client.patch("/me", json={"displayName": "  Roy   Zhao  "})
+
+    assert response.status_code == 200
+    assert response.json()["displayName"] == "Roy Zhao"
+    assert table.update_items[0]["Key"] == {"PK": "USER#student", "SK": "USER#student"}
+
+
 def test_categories_return_active_and_inactive_records_alphabetically(
     api: tuple[TestClient, FakeTable],
 ) -> None:
@@ -116,7 +231,7 @@ def test_categories_return_active_and_inactive_records_alphabetically(
         }
     ]
 
-    response = client.get("/categories", params={"user_id": "student"})
+    response = client.get("/categories", params={})
 
     assert response.status_code == 200
     assert response.json() == [
@@ -133,7 +248,7 @@ def test_categories_return_server_error_on_dynamodb_failure(
     client, table = api
     table.raise_client_error = True
 
-    response = client.get("/categories", params={"user_id": "student"})
+    response = client.get("/categories", params={})
 
     assert response.status_code == 500
     assert "DynamoDB error" in response.json()["detail"]
@@ -147,7 +262,7 @@ def test_create_category_normalizes_and_stores_enabled_category(
 
     response = client.post(
         "/categories",
-        json={"user_id": "student", "name": "  Research   &   Writing  "},
+        json={"name": "  Research   &   Writing  "},
     )
 
     assert response.status_code == 201
@@ -167,7 +282,7 @@ def test_create_category_accepts_unicode_letters_and_allowed_punctuation(
 
     response = client.post(
         "/categories",
-        json={"user_id": "student", "name": "Etude du Cafe - 学習 2's"},
+        json={"name": "Etude du Cafe - 学習 2's"},
     )
 
     assert response.status_code == 201
@@ -186,7 +301,7 @@ def test_create_category_accepts_valid_emoji_sequences(
 
     response = client.post(
         "/categories",
-        json={"user_id": "student", "name": name},
+        json={"name": name},
     )
 
     assert response.status_code == 201
@@ -205,7 +320,7 @@ def test_create_category_rejects_invalid_names(
 
     response = client.post(
         "/categories",
-        json={"user_id": "student", "name": name},
+        json={"name": name},
     )
 
     assert response.status_code == 400
@@ -222,7 +337,7 @@ def test_create_category_rejects_existing_inactive_name_after_normalization(
 
     response = client.post(
         "/categories",
-        json={"user_id": "student", "name": "  research   & writing "},
+        json={"name": "  research   & writing "},
     )
 
     assert response.status_code == 409
@@ -239,7 +354,7 @@ def test_create_category_rejects_concurrent_duplicate_write(
 
     response = client.post(
         "/categories",
-        json={"user_id": "student", "name": "Research"},
+        json={"name": "Research"},
     )
 
     assert response.status_code == 409
@@ -255,7 +370,7 @@ def test_create_category_reuses_released_name_with_new_id(
 
     response = client.post(
         "/categories",
-        json={"user_id": "student", "name": "Work"},
+        json={"name": "Work"},
     )
 
     assert response.status_code == 201
@@ -271,7 +386,7 @@ def test_update_category_status_disables_and_returns_category(
 
     response = client.patch(
         "/categories/research",
-        json={"user_id": "student", "isActive": False},
+        json={"isActive": False},
     )
 
     assert response.status_code == 200
@@ -291,7 +406,7 @@ def test_update_category_status_reenables_category(
 
     response = client.patch(
         "/categories/rest",
-        json={"user_id": "student", "isActive": True},
+        json={"isActive": True},
     )
 
     assert response.status_code == 200
@@ -307,7 +422,7 @@ def test_update_category_name_normalizes_and_preserves_category_id(
 
     response = client.patch(
         "/categories/research",
-        json={"user_id": "student", "name": "  Study   📚  "},
+        json={"name": "  Study   📚  "},
     )
 
     assert response.status_code == 200
@@ -328,7 +443,7 @@ def test_update_disabled_category_name_and_status_together(
 
     response = client.patch(
         "/categories/rest",
-        json={"user_id": "student", "name": "Break ☕", "isActive": True},
+        json={"name": "Break ☕", "isActive": True},
     )
 
     assert response.status_code == 200
@@ -345,7 +460,7 @@ def test_update_category_name_rejects_existing_name(
 
     response = client.patch(
         "/categories/research",
-        json={"user_id": "student", "name": " focus 📚 "},
+        json={"name": " focus 📚 "},
     )
 
     assert response.status_code == 409
@@ -357,7 +472,7 @@ def test_update_category_rejects_empty_update(api: tuple[TestClient, FakeTable])
 
     response = client.patch(
         "/categories/research",
-        json={"user_id": "student"},
+        json={},
     )
 
     assert response.status_code == 400
@@ -372,7 +487,7 @@ def test_update_category_status_rejects_missing_category(
 
     response = client.patch(
         "/categories/missing",
-        json={"user_id": "student", "isActive": False},
+        json={"isActive": False},
     )
 
     assert response.status_code == 404
@@ -390,7 +505,7 @@ def test_lambda_handler_accepts_api_gateway_http_api_event(
             "version": "2.0",
             "routeKey": "GET /categories",
             "rawPath": "/categories",
-            "rawQueryString": "user_id=student",
+            "rawQueryString": "",
             "headers": {"host": "example.execute-api.us-east-2.amazonaws.com"},
             "requestContext": {
                 "http": {
@@ -418,7 +533,6 @@ def test_create_entry_saves_v2_item_in_utc(api: tuple[TestClient, FakeTable]) ->
     response = client.post(
         "/entries",
         json={
-            "user_id": "student",
             "categoryId": "research",
             "timestamp": "2024-01-02T03:00:00-06:00",
         },
@@ -444,12 +558,11 @@ def test_create_entry_after_rename_snapshots_current_category_name(
 
     rename_response = client.patch(
         "/categories/research",
-        json={"user_id": "student", "name": "Study 📚"},
+        json={"name": "Study 📚"},
     )
     entry_response = client.post(
         "/entries",
         json={
-            "user_id": "student",
             "categoryId": "research",
             "timestamp": "2024-01-02T09:00:00Z",
         },
@@ -467,7 +580,6 @@ def test_create_entry_rejects_missing_category(api: tuple[TestClient, FakeTable]
     response = client.post(
         "/entries",
         json={
-            "user_id": "student",
             "categoryId": "missing",
             "timestamp": "2024-01-02T09:00:00Z",
         },
@@ -485,7 +597,6 @@ def test_create_entry_rejects_inactive_category(api: tuple[TestClient, FakeTable
     response = client.post(
         "/entries",
         json={
-            "user_id": "student",
             "categoryId": "archived",
             "timestamp": "2024-01-02T09:00:00Z",
         },
@@ -502,7 +613,6 @@ def test_create_entry_rejects_future_timestamp(api: tuple[TestClient, FakeTable]
     response = client.post(
         "/entries",
         json={
-            "user_id": "student",
             "categoryId": "research",
             "timestamp": "2999-01-01T00:00:00Z",
         },
@@ -522,7 +632,6 @@ def test_create_entry_rejects_consecutive_category(
     response = client.post(
         "/entries",
         json={
-            "user_id": "student",
             "categoryId": "research",
             "timestamp": "2024-01-02T09:00:00Z",
         },
@@ -551,7 +660,6 @@ def test_entries_local_filters_local_day_and_returns_preceding_category(
     response = client.get(
         "/entries-local",
         params={
-            "user_id": "student",
             "timezone": "America/Chicago",
             "date": "2024-01-02",
         },
@@ -594,7 +702,6 @@ def test_entries_local_filters_monday_week_across_dst_transition(
     response = client.get(
         "/entries-local",
         params={
-            "user_id": "student",
             "timezone": "America/Chicago",
             "date": "2024-03-06",
             "period": "week",
@@ -624,12 +731,11 @@ def test_entries_local_filters_monday_week_across_dst_transition(
     ("params", "detail"),
     [
         (
-            {"user_id": "student", "timezone": "Not/AZone", "date": "2024-01-02"},
+            {"timezone": "Not/AZone", "date": "2024-01-02"},
             "Invalid timezone",
         ),
         (
             {
-                "user_id": "student",
                 "timezone": "America/Chicago",
                 "date": "not-a-date",
             },
@@ -656,7 +762,6 @@ def test_entries_local_rejects_unsupported_period(api: tuple[TestClient, FakeTab
     response = client.get(
         "/entries-local",
         params={
-            "user_id": "student",
             "timezone": "America/Chicago",
             "date": "2024-01-02",
             "period": "month",
@@ -673,7 +778,7 @@ def test_malformed_entry_request_is_unprocessable(
 
     response = client.post(
         "/entries",
-        json={"user_id": "student", "categoryId": "research", "timestamp": "nope"},
+        json={"categoryId": "research", "timestamp": "nope"},
     )
 
     assert response.status_code == 422
@@ -686,7 +791,6 @@ def test_dynamodb_errors_return_server_error(api: tuple[TestClient, FakeTable]) 
     response = client.post(
         "/entries",
         json={
-            "user_id": "student",
             "categoryId": "research",
             "timestamp": "2024-01-02T09:00:00Z",
         },

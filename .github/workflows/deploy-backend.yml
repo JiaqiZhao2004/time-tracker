@@ -53,4 +53,20 @@ jobs:
           aws-region: us-east-2
 
       - name: Deploy backend Lambda
-        run: sam deploy --no-confirm-changeset --no-fail-on-empty-changeset
+        env:
+          GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+          ALLOWED_USER_EMAILS: ${{ secrets.ALLOWED_USER_EMAILS }}
+        run: >
+          sam deploy
+          --no-confirm-changeset
+          --no-fail-on-empty-changeset
+          --parameter-overrides
+          TimeTrackerTableName="time-tracker-v2"
+          AllowedOrigins="http://localhost:5173,http://localhost:5174,https://dxvboogtj4a4b.cloudfront.net"
+          AuthCallbackUrls="http://localhost:5173,https://dxvboogtj4a4b.cloudfront.net"
+          AuthLogoutUrls="http://localhost:5173,https://dxvboogtj4a4b.cloudfront.net"
+          CognitoDomainPrefix="time-tracker-jiaqizhao2004"
+          GoogleOAuthClientId="$GOOGLE_OAUTH_CLIENT_ID"
+          GoogleOAuthClientSecret="$GOOGLE_OAUTH_CLIENT_SECRET"
+          AllowedUserEmails="$ALLOWED_USER_EMAILS"
