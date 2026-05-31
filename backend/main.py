@@ -40,11 +40,16 @@ CATEGORY_NAME_PATTERN = regex.compile(
 
 class EntryCreate(BaseModel):
     categoryId: str = Field(..., min_length=1)
-    timestamp: AwareDatetime = Field(..., description="RFC 3339 datetime with timezone")
+    timestamp: AwareDatetime | None = Field(
+        None,
+        description="RFC 3339 datetime with timezone; omit to use server time",
+    )
 
     @field_validator("timestamp")
     @classmethod
-    def ensure_utc(cls, value: AwareDatetime) -> AwareDatetime:
+    def ensure_utc(cls, value: AwareDatetime | None) -> AwareDatetime | None:
+        if value is None:
+            return None
         return value.astimezone(UTC)
 
 
@@ -611,7 +616,7 @@ def create_entry(
     payload: EntryCreate,
     user: AuthenticatedUser = Depends(current_user),
 ) -> EntryRead:
-    timestamp_utc = payload.timestamp.astimezone(UTC)
+    timestamp_utc = payload.timestamp.astimezone(UTC) if payload.timestamp else datetime.now(UTC)
     if timestamp_utc > datetime.now(UTC):
         logger.warning(
             "Rejected future entry user_id=%s category_id=%s",

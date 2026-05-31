@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Iterator
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -593,6 +594,23 @@ def test_create_entry_saves_v2_item_in_utc(api: tuple[TestClient, FakeTable]) ->
     assert saved["SK"] == "ENTRY#2024-01-02T09:00:00+00:00"
     assert saved["categoryNameSnapshot"] == "Research"
     assert saved["schemaVersion"] == 2
+
+
+def test_create_entry_without_timestamp_uses_server_time(
+    api: tuple[TestClient, FakeTable],
+) -> None:
+    client, table = api
+
+    before = datetime.now(UTC)
+    response = client.post(
+        "/entries",
+        json={"categoryId": "research"},
+    )
+    after = datetime.now(UTC)
+
+    assert response.status_code == 200
+    saved_timestamp = datetime.fromisoformat(table.put_items[0]["timestamp"])
+    assert before <= saved_timestamp <= after
 
 
 def test_create_entry_logs_success_without_request_body(

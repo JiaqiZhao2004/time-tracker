@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createCategory, fetchCategories, fetchEntriesLocalWeek } from './api'
+import { createCategory, fetchCategories, fetchEntriesLocalWeek, postEntry } from './api'
 
 vi.mock('./auth', () => ({
   getAuthorizationHeader: vi.fn(async () => ({ Authorization: 'Bearer test-token' })),
@@ -88,6 +88,33 @@ describe('authenticated API requests', () => {
         Authorization: 'Bearer test-token',
         'Content-Type': 'application/json',
       },
+    })
+  })
+
+  it('omits timestamp when posting a quick entry', async () => {
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) =>
+      response({ id: 'entry-1', categoryId: 'study', timestamp: '2026-05-31T21:46:40Z' }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await postEntry('study')
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))
+    expect(body).toEqual({ categoryId: 'study' })
+  })
+
+  it('includes timestamp when posting a manual entry', async () => {
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) =>
+      response({ id: 'entry-1', categoryId: 'study', timestamp: '2026-05-31T21:46:40Z' }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await postEntry('study', '2026-05-31T21:46:40.000Z')
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))
+    expect(body).toEqual({
+      categoryId: 'study',
+      timestamp: '2026-05-31T21:46:40.000Z',
     })
   })
 })

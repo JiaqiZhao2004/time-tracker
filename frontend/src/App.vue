@@ -181,7 +181,7 @@ const logCategory = async (categoryId: string) => {
     return
   }
   try {
-    const created = await postEntry(categoryId, new Date().toISOString())
+    const created = await postEntry(categoryId)
     lastCategoryId.value = created.categoryId
     lastTimestamp.value = created.timestamp
     localStorage.setItem('lastCategoryId', created.categoryId)

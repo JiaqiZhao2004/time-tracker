@@ -136,12 +136,12 @@ export const renameCategory = async (
  */
 export const postEntry = async (
   categoryId: string,
-  timestamp: string,
+  timestamp?: string,
 ): Promise<Entry> => {
   const response = await fetch(`${API_BASE}/entries`, {
     method: "POST",
     headers: await requestHeaders({ "Content-Type": "application/json" }),
-    body: JSON.stringify({ categoryId, timestamp }),
+    body: JSON.stringify(timestamp ? { categoryId, timestamp } : { categoryId }),
   });
 
   if (!response.ok) {
