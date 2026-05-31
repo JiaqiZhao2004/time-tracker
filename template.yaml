@@ -162,6 +162,20 @@ Resources:
                 - dynamodb:UpdateItem
               Resource: !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${TimeTrackerTableName}
       Events:
+        GetMe:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref TimeTrackerApi
+            Path: /me
+            Method: GET
+            PayloadFormatVersion: "2.0"
+        UpdateMe:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref TimeTrackerApi
+            Path: /me
+            Method: PATCH
+            PayloadFormatVersion: "2.0"
         GetCategories:
           Type: HttpApi
           Properties:
