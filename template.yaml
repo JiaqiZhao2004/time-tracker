@@ -150,6 +150,7 @@ Resources:
         Variables:
           TABLE_NAME: !Ref TimeTrackerTableName
           ALLOWED_USER_EMAILS: !Ref AllowedUserEmails
+          LOG_LEVEL: INFO
       Policies:
         - Version: "2012-10-17"
           Statement:

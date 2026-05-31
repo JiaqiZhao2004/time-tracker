@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Iterator
 from typing import Any
 
@@ -166,6 +167,22 @@ def test_missing_auth_claims_return_unauthorized(
     assert response.status_code == 401
 
 
+def test_missing_auth_claims_logs_warning(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.delenv("DEV_AUTH_USER_ID", raising=False)
+    app.state.table = FakeTable()
+    caplog.set_level(logging.WARNING, logger="backend.main")
+
+    with TestClient(app) as client:
+        response = client.get("/categories")
+    app.state.table = None
+
+    assert response.status_code == 401
+    assert "Missing authenticated user claims" in caplog.text
+
+
 def test_non_allowlisted_email_returns_forbidden(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -242,6 +259,20 @@ def test_categories_return_active_and_inactive_records_alphabetically(
     ]
 
 
+def test_successful_request_logs_completion(
+    api: tuple[TestClient, FakeTable],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    client, table = api
+    table.query_responses = [{"Items": []}]
+    caplog.set_level(logging.INFO, logger="backend.main")
+
+    response = client.get("/categories")
+
+    assert response.status_code == 200
+    assert "Request completed method=GET path=/categories status_code=200" in caplog.text
+
+
 def test_categories_return_server_error_on_dynamodb_failure(
     api: tuple[TestClient, FakeTable],
 ) -> None:
@@ -252,6 +283,21 @@ def test_categories_return_server_error_on_dynamodb_failure(
 
     assert response.status_code == 500
     assert "DynamoDB error" in response.json()["detail"]
+
+
+def test_dynamodb_failure_logs_context(
+    api: tuple[TestClient, FakeTable],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    client, table = api
+    table.raise_client_error = True
+    caplog.set_level(logging.ERROR, logger="backend.main")
+
+    response = client.get("/categories", params={})
+
+    assert response.status_code == 500
+    assert "DynamoDB failure action=list_categories" in caplog.text
+    assert "student@example.com" not in caplog.text
 
 
 def test_create_category_normalizes_and_stores_enabled_category(
@@ -547,6 +593,28 @@ def test_create_entry_saves_v2_item_in_utc(api: tuple[TestClient, FakeTable]) ->
     assert saved["SK"] == "ENTRY#2024-01-02T09:00:00+00:00"
     assert saved["categoryNameSnapshot"] == "Research"
     assert saved["schemaVersion"] == 2
+
+
+def test_create_entry_logs_success_without_request_body(
+    api: tuple[TestClient, FakeTable],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    client, _ = api
+    caplog.set_level(logging.INFO, logger="backend.main")
+
+    response = client.post(
+        "/entries",
+        json={
+            "categoryId": "research",
+            "timestamp": "2024-01-02T03:00:00-06:00",
+        },
+    )
+
+    assert response.status_code == 200
+    assert "Created entry user_id=student category_id=research entry_id=" in caplog.text
+    assert "student@example.com" not in caplog.text
+    assert "2024-01-02T03:00:00-06:00" not in caplog.text
+    assert "Research" not in caplog.text
 
 
 def test_create_entry_after_rename_snapshots_current_category_name(

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
+import time
 import unicodedata
 import uuid
 from dataclasses import dataclass
@@ -20,6 +22,10 @@ from pydantic import AwareDatetime, BaseModel, Field, field_validator
 
 
 TABLE_NAME = os.getenv("TABLE_NAME", "time-tracker-v2")
+LOG_LEVEL = getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO)
+logging.getLogger().setLevel(LOG_LEVEL)
+logger = logging.getLogger(__name__)
+logger.setLevel(LOG_LEVEL)
 PICTOGRAPHIC_EMOJI = (
     r"\p{Extended_Pictographic}\uFE0F?(?:\p{Emoji_Modifier})?"
 )
@@ -98,6 +104,44 @@ app.add_middleware(
 )
 
 
+def redact_identifier(value: str | None) -> str:
+    text = value.strip() if value else ""
+    if not text:
+        return "unknown"
+    return text[:8]
+
+
+def route_path_for_request(request: Request) -> str:
+    route = request.scope.get("route")
+    return getattr(route, "path", request.url.path)
+
+
+@app.middleware("http")
+async def log_request(request: Request, call_next: Any) -> Any:
+    started = time.perf_counter()
+    try:
+        response = await call_next(request)
+    except Exception:
+        elapsed_ms = (time.perf_counter() - started) * 1000
+        logger.exception(
+            "Unhandled request error method=%s path=%s elapsed_ms=%.2f",
+            request.method,
+            route_path_for_request(request),
+            elapsed_ms,
+        )
+        raise
+
+    elapsed_ms = (time.perf_counter() - started) * 1000
+    logger.info(
+        "Request completed method=%s path=%s status_code=%s elapsed_ms=%.2f",
+        request.method,
+        route_path_for_request(request),
+        response.status_code,
+        elapsed_ms,
+    )
+    return response
+
+
 def allowed_user_emails() -> set[str]:
     return {
         email.strip().casefold()
@@ -137,10 +181,15 @@ def current_user(request: Request) -> AuthenticatedUser:
     user_id = claims.get("sub")
     email = claims.get("email")
     if not isinstance(user_id, str) or not user_id or not isinstance(email, str) or not email:
+        logger.warning("Missing authenticated user claims")
         raise HTTPException(status_code=401, detail="Missing authenticated user")
 
     allowlist = allowed_user_emails()
     if not allowlist or email.casefold() not in allowlist:
+        logger.warning(
+            "Rejected non-allowlisted user user_id=%s",
+            redact_identifier(user_id),
+        )
         raise HTTPException(status_code=403, detail="User is not allowed to access this app")
 
     display_name = claims.get("name") if isinstance(claims.get("name"), str) else None
@@ -150,6 +199,7 @@ def current_user(request: Request) -> AuthenticatedUser:
 def get_table() -> Any:
     """Return one cached DynamoDB table resource for application requests."""
     if app.state.table is None:
+        logger.info("Initializing DynamoDB table resource table_name=%s", TABLE_NAME)
         app.state.table = boto3.resource("dynamodb").Table(TABLE_NAME) # type: ignore
     return app.state.table
 
@@ -265,7 +315,19 @@ def query_all(table: Any, **kwargs: Any) -> list[dict[str, Any]]:
     return items
 
 
-def dynamodb_failure(error: Exception) -> HTTPException:
+def dynamodb_failure(
+    error: Exception,
+    *,
+    action: str,
+    user_id: str | None = None,
+    category_id: str | None = None,
+) -> HTTPException:
+    logger.exception(
+        "DynamoDB failure action=%s user_id=%s category_id=%s",
+        action,
+        redact_identifier(user_id),
+        redact_identifier(category_id),
+    )
     return HTTPException(status_code=500, detail=f"DynamoDB error: {error}")
 
 
@@ -296,15 +358,27 @@ def get_me(user: AuthenticatedUser = Depends(current_user)) -> UserProfile:
             Item=item,
             ConditionExpression="attribute_not_exists(PK) AND attribute_not_exists(SK)",
         )
+        logger.info(
+            "Created user profile user_id=%s",
+            redact_identifier(user.user_id),
+        )
         return user_profile_from_item(item)
     except ClientError as error:
         if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
             existing = get_table().get_item(Key=user_profile_key(user.user_id)).get("Item")
             if existing is not None:
                 return user_profile_from_item(existing)
-        raise dynamodb_failure(error) from error
+        raise dynamodb_failure(
+            error,
+            action="get_or_create_user_profile",
+            user_id=user.user_id,
+        ) from error
     except BotoCoreError as error:
-        raise dynamodb_failure(error) from error
+        raise dynamodb_failure(
+            error,
+            action="get_or_create_user_profile",
+            user_id=user.user_id,
+        ) from error
 
 
 @app.patch("/me", response_model=UserProfile)
@@ -332,9 +406,17 @@ def update_me(
             },
             ReturnValues="ALL_NEW",
         )
+        logger.info(
+            "Updated user profile user_id=%s",
+            redact_identifier(user.user_id),
+        )
         return user_profile_from_item(response["Attributes"])
     except (BotoCoreError, ClientError) as error:
-        raise dynamodb_failure(error) from error
+        raise dynamodb_failure(
+            error,
+            action="update_user_profile",
+            user_id=user.user_id,
+        ) from error
 
 
 @app.get("/categories", response_model=list[CategoryRead])
@@ -348,9 +430,18 @@ def get_categories(user: AuthenticatedUser = Depends(current_user)) -> list[Cate
             ScanIndexForward=True,
         )
         categories = [category_read_from_item(item) for item in items]
+        logger.info(
+            "Listed categories user_id=%s count=%s",
+            redact_identifier(user.user_id),
+            len(categories),
+        )
         return sorted(categories, key=lambda item: (item.name.casefold(), item.categoryId))
     except (BotoCoreError, ClientError) as error:
-        raise dynamodb_failure(error) from error
+        raise dynamodb_failure(
+            error,
+            action="list_categories",
+            user_id=user.user_id,
+        ) from error
 
 
 @app.post("/categories", response_model=CategoryRead, status_code=201)
@@ -372,6 +463,10 @@ def create_category(
             comparable_category_name(item["name"]) == comparable_category_name(name)
             for item in items
         ):
+            logger.warning(
+                "Rejected duplicate category create user_id=%s",
+                redact_identifier(user_id),
+            )
             raise HTTPException(
                 status_code=409,
                 detail=f"A category named '{name}' already exists",
@@ -391,18 +486,35 @@ def create_category(
             Item=item,
             ConditionExpression="attribute_not_exists(PK) AND attribute_not_exists(SK)",
         )
+        logger.info(
+            "Created category user_id=%s category_id=%s",
+            redact_identifier(user_id),
+            redact_identifier(category_id),
+        )
         return category_read_from_item(item)
     except HTTPException:
         raise
     except ClientError as error:
         if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+            logger.warning(
+                "Rejected concurrent duplicate category create user_id=%s",
+                redact_identifier(user.user_id),
+            )
             raise HTTPException(
                 status_code=409,
                 detail=f"A category named '{name}' already exists",
             ) from error
-        raise dynamodb_failure(error) from error
+        raise dynamodb_failure(
+            error,
+            action="create_category",
+            user_id=user.user_id,
+        ) from error
     except BotoCoreError as error:
-        raise dynamodb_failure(error) from error
+        raise dynamodb_failure(
+            error,
+            action="create_category",
+            user_id=user.user_id,
+        ) from error
 
 
 @app.patch("/categories/{category_id}", response_model=CategoryRead)
@@ -412,6 +524,11 @@ def update_category(
     user: AuthenticatedUser = Depends(current_user),
 ) -> CategoryRead:
     if payload.name is None and payload.isActive is None:
+        logger.warning(
+            "Rejected empty category update user_id=%s category_id=%s",
+            redact_identifier(user.user_id),
+            redact_identifier(category_id),
+        )
         raise HTTPException(status_code=400, detail="Provide a category name or status update")
 
     name = normalize_category_name(payload.name) if payload.name is not None else None
@@ -423,6 +540,11 @@ def update_category(
         }
         existing = table.get_item(Key=key).get("Item")
         if existing is None:
+            logger.warning(
+                "Rejected missing category update user_id=%s category_id=%s",
+                redact_identifier(user.user_id),
+                redact_identifier(category_id),
+            )
             raise HTTPException(status_code=404, detail="Category does not exist")
 
         if name is not None:
@@ -437,6 +559,11 @@ def update_category(
                 and comparable_category_name(item["name"]) == comparable_category_name(name)
                 for item in items
             ):
+                logger.warning(
+                    "Rejected duplicate category update user_id=%s category_id=%s",
+                    redact_identifier(user.user_id),
+                    redact_identifier(category_id),
+                )
                 raise HTTPException(
                     status_code=409,
                     detail=f"A category named '{name}' already exists",
@@ -460,11 +587,23 @@ def update_category(
             ReturnValues="ALL_NEW",
             **update_kwargs,
         )
+        logger.info(
+            "Updated category user_id=%s category_id=%s changed_name=%s changed_active=%s",
+            redact_identifier(user.user_id),
+            redact_identifier(category_id),
+            name is not None,
+            payload.isActive is not None,
+        )
         return category_read_from_item(response["Attributes"])
     except HTTPException:
         raise
     except (BotoCoreError, ClientError) as error:
-        raise dynamodb_failure(error) from error
+        raise dynamodb_failure(
+            error,
+            action="update_category",
+            user_id=user.user_id,
+            category_id=category_id,
+        ) from error
 
 
 @app.post("/entries", response_model=EntryRead)
@@ -474,6 +613,11 @@ def create_entry(
 ) -> EntryRead:
     timestamp_utc = payload.timestamp.astimezone(UTC)
     if timestamp_utc > datetime.now(UTC):
+        logger.warning(
+            "Rejected future entry user_id=%s category_id=%s",
+            redact_identifier(user.user_id),
+            redact_identifier(payload.categoryId),
+        )
         raise HTTPException(status_code=400, detail="Cannot add entry in the future")
 
     try:
@@ -486,11 +630,21 @@ def create_entry(
         )
         category = category_response.get("Item")
         if category is None:
+            logger.warning(
+                "Rejected entry with missing category user_id=%s category_id=%s",
+                redact_identifier(user.user_id),
+                redact_identifier(payload.categoryId),
+            )
             raise HTTPException(
                 status_code=400,
                 detail=f"Cannot add entry: this category '{payload.categoryId}' does not exist",
             )
         if not category.get("isActive", False):
+            logger.warning(
+                "Rejected entry with inactive category user_id=%s category_id=%s",
+                redact_identifier(user.user_id),
+                redact_identifier(payload.categoryId),
+            )
             raise HTTPException(
                 status_code=400,
                 detail=f"Cannot add entry: this category '{payload.categoryId}' is inactive",
@@ -498,6 +652,11 @@ def create_entry(
 
         preceding = previous_entry(table, user.user_id, timestamp_utc)
         if preceding and preceding["categoryId"] == payload.categoryId:
+            logger.warning(
+                "Rejected consecutive entry category user_id=%s category_id=%s",
+                redact_identifier(user.user_id),
+                redact_identifier(payload.categoryId),
+            )
             raise HTTPException(
                 status_code=400,
                 detail=(
@@ -517,11 +676,22 @@ def create_entry(
             "schemaVersion": 2,
         }
         table.put_item(Item=item)
+        logger.info(
+            "Created entry user_id=%s category_id=%s entry_id=%s",
+            redact_identifier(user.user_id),
+            redact_identifier(payload.categoryId),
+            redact_identifier(item["id"]),
+        )
         return entry_read_from_item(item)
     except HTTPException:
         raise
     except (BotoCoreError, ClientError) as error:
-        raise dynamodb_failure(error) from error
+        raise dynamodb_failure(
+            error,
+            action="create_entry",
+            user_id=user.user_id,
+            category_id=payload.categoryId,
+        ) from error
 
 
 @app.get("/entries-local", response_model=EntriesLocalResponse)
@@ -565,13 +735,23 @@ def get_entries_local(
             if start_utc <= datetime_from_item(item) < end_utc
         ]
         preceding = previous_entry(table, user.user_id, start_utc)
+        logger.info(
+            "Listed local entries user_id=%s period=%s count=%s",
+            redact_identifier(user.user_id),
+            period,
+            len(entries),
+        )
         return EntriesLocalResponse(
             period=period,
             prevEntryCategoryId=preceding["categoryId"] if preceding else None,
             entries=entries,
         )
     except (BotoCoreError, ClientError) as error:
-        raise dynamodb_failure(error) from error
+        raise dynamodb_failure(
+            error,
+            action="list_local_entries",
+            user_id=user.user_id,
+        ) from error
 
 
 lambda_app = Mangum(app, lifespan="off")
