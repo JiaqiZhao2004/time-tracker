@@ -203,6 +203,25 @@ def test_non_allowlisted_email_returns_forbidden(
     assert response["statusCode"] == 403
 
 
+def test_empty_allowlist_allows_authenticated_user(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("DEV_AUTH_USER_ID", raising=False)
+    monkeypatch.setenv("ALLOWED_USER_EMAILS", "")
+    app.state.table = FakeTable()
+
+    response = handler(
+        api_gateway_event(
+            "/categories",
+            claims={"sub": "new-user", "email": "new@example.com"},
+        ),
+        {},
+    )
+    app.state.table = None
+
+    assert response["statusCode"] == 200
+
+
 def test_me_creates_profile_from_authenticated_user(
     api: tuple[TestClient, FakeTable],
 ) -> None:

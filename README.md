@@ -28,7 +28,7 @@ Google sign-in through Amazon Cognito.
 ### Technical Highlights
 - **Serverless architecture**: Zero server maintenance, automatic scaling, pay-per-use pricing
 - **DynamoDB single-table design**: Optimized access patterns with composite keys for efficient queries
-- **Cognito authentication**: Google Hosted UI sign-in, OAuth authorization-code flow, ID-token API authorization, Hosted UI logout, and email allowlisting
+- **Cognito authentication**: Google Hosted UI sign-in, OAuth authorization-code flow, ID-token API authorization, Hosted UI logout, and optional email allowlisting
 - **RESTful API**: Clean API design with proper HTTP semantics via API Gateway
 - **Type-safe frontend**: Full TypeScript implementation with Vue 3 Composition API
 - **Responsive UI**: Compatible with both Mobile and Desktop views
@@ -98,7 +98,8 @@ provider on the first pass. Set these SAM parameters:
 
 - `GoogleOAuthClientId` and `GoogleOAuthClientSecret` from Google Cloud.
 - `AllowedUserEmails` to a comma-separated allowlist such as
-  `roy@example.com,friend@example.com`.
+  `roy@example.com,friend@example.com`, or leave it empty to allow any
+  authenticated Google user.
 - `CognitoDomainPrefix` to a globally unique Hosted UI domain prefix.
 - `AuthCallbackUrls` and `AuthLogoutUrls` to the frontend origins, for example
   `https://example.cloudfront.net,http://localhost:5173`.
@@ -110,7 +111,7 @@ The Cognito resources in `template.yaml` include:
 - A public SPA user pool client using the OAuth authorization-code flow.
 - A Cognito Hosted UI domain for sign-in and logout redirects.
 - An API Gateway HTTP API JWT authorizer that validates Cognito ID tokens.
-- Backend email allowlisting through `ALLOWED_USER_EMAILS`.
+- Optional backend email allowlisting through `ALLOWED_USER_EMAILS`.
 
 The stack output `ApiBaseUrl` is the value to provide as `VITE_API_BASE` when
 building the frontend. Also set `VITE_COGNITO_AUTHORITY` from

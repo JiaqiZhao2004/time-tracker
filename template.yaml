@@ -9,15 +9,15 @@ Parameters:
     Description: Existing DynamoDB table used by the backend.
   AllowedOrigins:
     Type: CommaDelimitedList
-    Default: http://localhost:5173,https://dxvboogtj4a4b.cloudfront.net
+    Default: http://localhost:5173,https://dxvboogtj4a4b.cloudfront.net,https://trace.royzhao.dev
     Description: Browser origins allowed to call the HTTP API.
   AuthCallbackUrls:
     Type: CommaDelimitedList
-    Default: http://localhost:5173,https://dxvboogtj4a4b.cloudfront.net
+    Default: http://localhost:5173,https://dxvboogtj4a4b.cloudfront.net,https://trace.royzhao.dev
     Description: Cognito Hosted UI callback URLs for the frontend.
   AuthLogoutUrls:
     Type: CommaDelimitedList
-    Default: http://localhost:5173,https://dxvboogtj4a4b.cloudfront.net
+    Default: http://localhost:5173,https://dxvboogtj4a4b.cloudfront.net,https://trace.royzhao.dev
     Description: Cognito Hosted UI logout redirect URLs for the frontend.
   CognitoDomainPrefix:
     Type: String

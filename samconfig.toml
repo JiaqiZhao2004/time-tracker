@@ -6,7 +6,7 @@ resolve_s3 = true
 s3_prefix = "time-tracker-sam-app"
 confirm_changeset = true
 capabilities = "CAPABILITY_IAM"
-parameter_overrides = "TimeTrackerTableName=\"time-tracker-v2\" AllowedOrigins=\"http://localhost:5173,http://localhost:5174,https://dxvboogtj4a4b.cloudfront.net\" AuthCallbackUrls=\"http://localhost:5173,https://dxvboogtj4a4b.cloudfront.net\" AuthLogoutUrls=\"http://localhost:5173,https://dxvboogtj4a4b.cloudfront.net\" CognitoDomainPrefix=\"time-tracker-jiaqizhao2004\" AllowedUserEmails=\"royzhao2004@outlook.com,celinafan@outlook.com\""
+parameter_overrides = "TimeTrackerTableName=\"time-tracker-v2\" AllowedOrigins=\"http://localhost:5173,http://localhost:5174,https://dxvboogtj4a4b.cloudfront.net,https://trace.royzhao.dev\" AuthCallbackUrls=\"http://localhost:5173,https://dxvboogtj4a4b.cloudfront.net,https://trace.royzhao.dev\" AuthLogoutUrls=\"http://localhost:5173,https://dxvboogtj4a4b.cloudfront.net,https://trace.royzhao.dev\" CognitoDomainPrefix=\"time-tracker-jiaqizhao2004\" AllowedUserEmails=\"royzhao2004@outlook.com,celinafan@outlook.com\""
 image_repositories = []
 
 [default.global.parameters]

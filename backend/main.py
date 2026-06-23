@@ -190,7 +190,7 @@ def current_user(request: Request) -> AuthenticatedUser:
         raise HTTPException(status_code=401, detail="Missing authenticated user")
 
     allowlist = allowed_user_emails()
-    if not allowlist or email.casefold() not in allowlist:
+    if allowlist and email.casefold() not in allowlist:
         logger.warning(
             "Rejected non-allowlisted user user_id=%s",
             redact_identifier(user_id),
