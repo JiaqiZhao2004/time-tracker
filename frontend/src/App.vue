@@ -513,6 +513,7 @@ onUnmounted(() => {
 .auth-screen {
   width: min(100%, 1180px);
   min-height: 100svh;
+  box-sizing: border-box;
   padding: clamp(1.5rem, 5vh, 3.5rem) 1.5rem;
   display: grid;
   grid-template-columns: minmax(0, 0.9fr) minmax(320px, 0.68fr);
