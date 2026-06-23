@@ -6,6 +6,7 @@ const props = defineProps<{
   displayName: string
   profileErrorMessage: string
   isProfileSaving: boolean
+  isGuest: boolean
 }>()
 
 const emit = defineEmits<{
@@ -83,7 +84,9 @@ const saveProfile = () => {
         <button class="profile-name" type="button" @click="startProfileEdit">
           {{ displayName }}
         </button>
-        <button class="ghost" type="button" @click="emit('signOut')">Sign out</button>
+        <button class="ghost" type="button" @click="emit('signOut')">
+          {{ isGuest ? 'Leave guest' : 'Sign out' }}
+        </button>
       </template>
       <p v-if="profileErrorMessage" class="profile-error">{{ profileErrorMessage }}</p>
     </div>

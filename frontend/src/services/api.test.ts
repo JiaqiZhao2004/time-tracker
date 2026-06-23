@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createCategory, fetchCategories, fetchEntriesLocalWeek, postEntry } from './api'
+import { clearGuestMode, createCategory, enableGuestMode, fetchCategories, fetchEntriesLocalWeek, postEntry } from './api'
 
 vi.mock('./auth', () => ({
   getAuthorizationHeader: vi.fn(async () => ({ Authorization: 'Bearer test-token' })),
@@ -24,7 +24,19 @@ const response = (body: unknown): Response =>
     headers: { 'Content-Type': 'application/json' },
   })
 
+const stubBrowserStorage = () => {
+  const store = new Map<string, string>()
+  vi.stubGlobal('window', {
+    localStorage: {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => store.set(key, value),
+      removeItem: (key: string) => store.delete(key),
+    },
+  })
+}
+
 afterEach(() => {
+  clearGuestMode()
   vi.unstubAllGlobals()
   vi.mocked(auth.signIn).mockClear()
 })
@@ -133,6 +145,54 @@ describe('authenticated API requests', () => {
     expect(body).toEqual({
       categoryId: 'study',
       timestamp: '2026-05-31T21:46:40.000Z',
+    })
+  })
+})
+
+describe('guest API requests', () => {
+  it('uses guest endpoints without bearer auth', async () => {
+    stubBrowserStorage()
+    enableGuestMode()
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => response([]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await fetchCategories()
+
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:8000/guest/categories', {
+      headers: {},
+    })
+    expect(auth.signIn).not.toHaveBeenCalled()
+  })
+
+  it('does not start sign-in when a guest request is unauthorized', async () => {
+    stubBrowserStorage()
+    enableGuestMode()
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) =>
+      new Response(JSON.stringify({ detail: 'Guest access unavailable' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(fetchCategories()).rejects.toThrow('Guest access unavailable')
+
+    expect(auth.signIn).not.toHaveBeenCalled()
+  })
+
+  it('uses guest mutation endpoints', async () => {
+    stubBrowserStorage()
+    enableGuestMode()
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) =>
+      response({ id: 'entry-1', categoryId: 'study', timestamp: '2026-05-31T21:46:40Z' }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await postEntry('study')
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('http://localhost:8000/guest/entries')
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
+      headers: { 'Content-Type': 'application/json' },
     })
   })
 })

@@ -9,7 +9,7 @@ import { projectDailyTimeline, projectTimelineRange } from './domain/dailyTimeli
 import { resolveDisplayEntries } from './domain/displayEntries'
 import { localDayContaining, localWeekContaining, localWeekDates, shiftLocalDay, todayLocalDay } from './domain/localDay'
 import { completeSignIn, getSignedInUser, isAuthConfigured, signIn, signOut } from './services/auth'
-import { fetchCategories, fetchEntriesLocal, fetchEntriesLocalWeek, fetchMe, postEntry, updateMe, type EntriesLocalResponse, type EntriesPeriod, type UserProfile } from './services/api'
+import { clearGuestMode, enableGuestMode, fetchCategories, fetchEntriesLocal, fetchEntriesLocalWeek, fetchMe, isGuestMode, postEntry, updateMe, type EntriesLocalResponse, type EntriesPeriod, type UserProfile } from './services/api'
 import { displayCategory, type Category, type DisplayCategory } from './types/category'
 import type { Entry } from './types/entry'
 
@@ -18,7 +18,7 @@ type HourMark = {
   left: string
 }
 
-type AuthStatus = 'checking' | 'signedOut' | 'signedIn'
+type AuthStatus = 'checking' | 'signedOut' | 'signedIn' | 'guest'
 
 const authStatus = ref<AuthStatus>('checking')
 const authErrorMessage = ref('')
@@ -269,8 +269,19 @@ const initializeAuthenticatedApp = async () => {
   await loadInitialData()
 }
 
+const initializeGuestApp = async () => {
+  authStatus.value = 'guest'
+  profile.value = await fetchMe()
+  await loadInitialData()
+}
+
 const initializeAuth = async () => {
   authErrorMessage.value = ''
+  if (isGuestMode()) {
+    await initializeGuestApp()
+    return
+  }
+
   if (!isAuthConfigured) {
     authStatus.value = 'signedOut'
     authErrorMessage.value = 'Authentication is not configured'
@@ -300,15 +311,38 @@ const initializeAuth = async () => {
 const handleSignIn = async () => {
   authErrorMessage.value = ''
   try {
+    clearGuestMode()
     await signIn()
   } catch (error) {
     authErrorMessage.value = error instanceof Error ? error.message : 'Failed to start sign in'
   }
 }
 
+const handleTryGuest = async () => {
+  authErrorMessage.value = ''
+  enableGuestMode()
+  try {
+    await initializeGuestApp()
+  } catch (error) {
+    clearGuestMode()
+    authStatus.value = 'signedOut'
+    authErrorMessage.value = error instanceof Error ? error.message : 'Failed to start guest mode'
+  }
+}
+
 const handleSignOut = async () => {
   authErrorMessage.value = ''
   try {
+    if (authStatus.value === 'guest') {
+      clearGuestMode()
+      authStatus.value = 'signedOut'
+      profile.value = null
+      categories.value = []
+      entries.value = []
+      return
+    }
+
+    clearGuestMode()
     await signOut()
   } catch (error) {
     authErrorMessage.value = error instanceof Error ? error.message : 'Failed to sign out'
@@ -336,7 +370,6 @@ onMounted(() => {
   if (storedTimestamp) {
     lastTimestamp.value = storedTimestamp
   }
-  loadInitialData()
   tickerId = window.setInterval(() => {
     now.value = new Date()
   }, 1000)
@@ -360,6 +393,7 @@ onUnmounted(() => {
     <h1>Trace</h1>
     <p>See where your time goes and how your days take shape.</p>
     <button class="primary-auth" type="button" @click="handleSignIn">Sign in with Google</button>
+    <button class="secondary-auth" type="button" @click="handleTryGuest">Try as guest</button>
     <p v-if="authErrorMessage" class="auth-error">{{ authErrorMessage }}</p>
   </div>
 
@@ -369,6 +403,7 @@ onUnmounted(() => {
       :displayName="profile?.displayName ?? ''"
       :profileErrorMessage="profileErrorMessage"
       :isProfileSaving="isProfileSaving"
+      :isGuest="authStatus === 'guest'"
       @shiftDay="shiftDay"
       @goToToday="goToToday"
       @signOut="handleSignOut"
@@ -442,6 +477,16 @@ onUnmounted(() => {
   border: 0;
   background: #f5f5f5;
   color: #0f1115;
+  padding: 0.7rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.secondary-auth {
+  border: 1px solid #3a3f4b;
+  background: transparent;
+  color: #f5f5f5;
   padding: 0.7rem 1rem;
   border-radius: 8px;
   cursor: pointer;

@@ -184,6 +184,42 @@ Resources:
             Path: /categories
             Method: GET
             PayloadFormatVersion: "2.0"
+        GetGuestMe:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref TimeTrackerApi
+            Path: /guest/me
+            Method: GET
+            PayloadFormatVersion: "2.0"
+            Auth:
+              Authorizer: NONE
+        UpdateGuestMe:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref TimeTrackerApi
+            Path: /guest/me
+            Method: PATCH
+            PayloadFormatVersion: "2.0"
+            Auth:
+              Authorizer: NONE
+        GetGuestCategories:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref TimeTrackerApi
+            Path: /guest/categories
+            Method: GET
+            PayloadFormatVersion: "2.0"
+            Auth:
+              Authorizer: NONE
+        CreateGuestCategory:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref TimeTrackerApi
+            Path: /guest/categories
+            Method: POST
+            PayloadFormatVersion: "2.0"
+            Auth:
+              Authorizer: NONE
         CreateCategory:
           Type: HttpApi
           Properties:
@@ -198,6 +234,15 @@ Resources:
             Path: /categories/{category_id}
             Method: PATCH
             PayloadFormatVersion: "2.0"
+        UpdateGuestCategoryStatus:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref TimeTrackerApi
+            Path: /guest/categories/{category_id}
+            Method: PATCH
+            PayloadFormatVersion: "2.0"
+            Auth:
+              Authorizer: NONE
         CreateEntry:
           Type: HttpApi
           Properties:
@@ -205,6 +250,15 @@ Resources:
             Path: /entries
             Method: POST
             PayloadFormatVersion: "2.0"
+        CreateGuestEntry:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref TimeTrackerApi
+            Path: /guest/entries
+            Method: POST
+            PayloadFormatVersion: "2.0"
+            Auth:
+              Authorizer: NONE
         GetEntriesLocal:
           Type: HttpApi
           Properties:
@@ -212,6 +266,15 @@ Resources:
             Path: /entries-local
             Method: GET
             PayloadFormatVersion: "2.0"
+        GetGuestEntriesLocal:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref TimeTrackerApi
+            Path: /guest/entries-local
+            Method: GET
+            PayloadFormatVersion: "2.0"
+            Auth:
+              Authorizer: NONE
 
 Outputs:
   ApiBaseUrl:

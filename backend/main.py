@@ -15,13 +15,17 @@ import boto3
 import regex
 from boto3.dynamodb.conditions import Key
 from botocore.exceptions import BotoCoreError, ClientError
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
 from pydantic import AwareDatetime, BaseModel, Field, field_validator
 
 
 TABLE_NAME = os.getenv("TABLE_NAME", "time-tracker-v2")
+GUEST_USER_ID = "guest"
+GUEST_EMAIL = "guest@trace.local"
+GUEST_DISPLAY_NAME = "Guest"
+GUEST_CATEGORY_NAMES = ("Work", "Study", "Rest")
 LOG_LEVEL = getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO)
 logging.getLogger().setLevel(LOG_LEVEL)
 logger = logging.getLogger(__name__)
@@ -98,6 +102,7 @@ class AuthenticatedUser:
 
 
 app = FastAPI(title="Time Tracker API")
+guest_router = APIRouter(prefix="/guest", tags=["guest"])
 app.state.table = None
 
 app.add_middleware(
@@ -222,6 +227,14 @@ def user_profile_key(user_id: str) -> dict[str, str]:
     return {"PK": key, "SK": key}
 
 
+def guest_user() -> AuthenticatedUser:
+    return AuthenticatedUser(
+        user_id=GUEST_USER_ID,
+        email=GUEST_EMAIL,
+        display_name=GUEST_DISPLAY_NAME,
+    )
+
+
 def entry_key(value: datetime) -> str:
     return f"ENTRY#{value.astimezone(UTC).isoformat()}"
 
@@ -247,6 +260,37 @@ def category_read_from_item(item: dict[str, Any]) -> CategoryRead:
         name=item["name"],
         isActive=item["isActive"],
     )
+
+
+def seed_guest_categories_if_empty(
+    table: Any,
+    existing_items: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    if existing_items:
+        return existing_items
+
+    seeded_items: list[dict[str, Any]] = []
+    for name in GUEST_CATEGORY_NAMES:
+        category_id = category_id_for_name(GUEST_USER_ID, name)
+        item = {
+            "PK": user_key(GUEST_USER_ID),
+            "SK": f"CATEGORY#{category_id}",
+            "entityType": "Category",
+            "categoryId": category_id,
+            "name": name,
+            "isActive": True,
+            "schemaVersion": 2,
+        }
+        try:
+            table.put_item(
+                Item=item,
+                ConditionExpression="attribute_not_exists(PK) AND attribute_not_exists(SK)",
+            )
+        except ClientError as error:
+            if error.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
+                raise
+        seeded_items.append(item)
+    return seeded_items
 
 
 def user_profile_from_item(item: dict[str, Any]) -> UserProfile:
@@ -428,6 +472,16 @@ def update_me(
         ) from error
 
 
+@guest_router.get("/me", response_model=UserProfile)
+def get_guest_me() -> UserProfile:
+    return get_me(guest_user())
+
+
+@guest_router.patch("/me", response_model=UserProfile)
+def update_guest_me(payload: UserProfileUpdate) -> UserProfile:
+    return update_me(payload, guest_user())
+
+
 @app.get("/categories", response_model=list[CategoryRead])
 def get_categories(user: AuthenticatedUser = Depends(current_user)) -> list[CategoryRead]:
     try:
@@ -438,6 +492,8 @@ def get_categories(user: AuthenticatedUser = Depends(current_user)) -> list[Cate
             & Key("SK").begins_with("CATEGORY#"),
             ScanIndexForward=True,
         )
+        if user.user_id == GUEST_USER_ID:
+            items = seed_guest_categories_if_empty(table, items)
         categories = [category_read_from_item(item) for item in items]
         logger.info(
             "Listed categories user_id=%s count=%s",
@@ -451,6 +507,11 @@ def get_categories(user: AuthenticatedUser = Depends(current_user)) -> list[Cate
             action="list_categories",
             user_id=user.user_id,
         ) from error
+
+
+@guest_router.get("/categories", response_model=list[CategoryRead])
+def get_guest_categories() -> list[CategoryRead]:
+    return get_categories(guest_user())
 
 
 @app.post("/categories", response_model=CategoryRead, status_code=201)
@@ -524,6 +585,16 @@ def create_category(
             action="create_category",
             user_id=user.user_id,
         ) from error
+
+
+@guest_router.post("/categories", response_model=CategoryRead, status_code=201)
+def create_guest_category(payload: CategoryCreate) -> CategoryRead:
+    return create_category(payload, guest_user())
+
+
+@guest_router.patch("/categories/{category_id}", response_model=CategoryRead)
+def update_guest_category(category_id: str, payload: CategoryUpdate) -> CategoryRead:
+    return update_category(category_id, payload, guest_user())
 
 
 @app.patch("/categories/{category_id}", response_model=CategoryRead)
@@ -613,6 +684,11 @@ def update_category(
             user_id=user.user_id,
             category_id=category_id,
         ) from error
+
+
+@guest_router.post("/entries", response_model=EntryRead)
+def create_guest_entry(payload: EntryCreate) -> EntryRead:
+    return create_entry(payload, guest_user())
 
 
 @app.post("/entries", response_model=EntryRead)
@@ -761,6 +837,18 @@ def get_entries_local(
             action="list_local_entries",
             user_id=user.user_id,
         ) from error
+
+
+@guest_router.get("/entries-local", response_model=EntriesLocalResponse)
+def get_guest_entries_local(
+    timezone: str = Query(..., min_length=1),
+    date: str = Query(..., min_length=1),
+    period: Literal["day", "week"] = Query("day"),
+) -> EntriesLocalResponse:
+    return get_entries_local(timezone, date, period, guest_user())
+
+
+app.include_router(guest_router)
 
 
 lambda_app = Mangum(app, lifespan="off")

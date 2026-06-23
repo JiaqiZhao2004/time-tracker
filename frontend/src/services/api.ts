@@ -20,12 +20,31 @@ export type EntriesLocalResponse = {
 };
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
+const GUEST_MODE_KEY = "traceGuestMode";
+
+export const isGuestMode = (): boolean =>
+  typeof window !== "undefined" && window.localStorage.getItem(GUEST_MODE_KEY) === "true";
+
+export const enableGuestMode = (): void => {
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(GUEST_MODE_KEY, "true");
+  }
+};
+
+export const clearGuestMode = (): void => {
+  if (typeof window !== "undefined") {
+    window.localStorage.removeItem(GUEST_MODE_KEY);
+  }
+};
+
+const apiUrl = (path: string): string =>
+  `${API_BASE}${isGuestMode() ? "/guest" : ""}${path}`;
 
 const requestHeaders = async (
   headers: Record<string, string> = {},
 ): Promise<Record<string, string>> => ({
   ...headers,
-  ...(await getAuthorizationHeader()),
+  ...(isGuestMode() ? {} : await getAuthorizationHeader()),
 });
 
 const errorMessage = async (response: Response, fallback: string): Promise<string> => {
@@ -47,7 +66,7 @@ const errorMessage = async (response: Response, fallback: string): Promise<strin
 
 const apiFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
   const response = await fetch(input, init);
-  if (response.status === 401) {
+  if (response.status === 401 && !isGuestMode()) {
     await signIn();
   }
 
@@ -55,7 +74,7 @@ const apiFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<R
 };
 
 export const fetchMe = async (): Promise<UserProfile> => {
-  const response = await apiFetch(`${API_BASE}/me`, {
+  const response = await apiFetch(apiUrl("/me"), {
     headers: await requestHeaders(),
   });
 
@@ -67,7 +86,7 @@ export const fetchMe = async (): Promise<UserProfile> => {
 };
 
 export const updateMe = async (displayName: string): Promise<UserProfile> => {
-  const response = await apiFetch(`${API_BASE}/me`, {
+  const response = await apiFetch(apiUrl("/me"), {
     method: "PATCH",
     headers: await requestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ displayName }),
@@ -81,7 +100,7 @@ export const updateMe = async (displayName: string): Promise<UserProfile> => {
 };
 
 export const fetchCategories = async (): Promise<Category[]> => {
-  const response = await apiFetch(`${API_BASE}/categories`, {
+  const response = await apiFetch(apiUrl("/categories"), {
     headers: await requestHeaders(),
   });
 
@@ -93,7 +112,7 @@ export const fetchCategories = async (): Promise<Category[]> => {
 };
 
 export const createCategory = async (name: string): Promise<Category> => {
-  const response = await apiFetch(`${API_BASE}/categories`, {
+  const response = await apiFetch(apiUrl("/categories"), {
     method: "POST",
     headers: await requestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ name }),
@@ -110,7 +129,7 @@ export const setCategoryActive = async (
   categoryId: string,
   isActive: boolean,
 ): Promise<Category> => {
-  const response = await apiFetch(`${API_BASE}/categories/${encodeURIComponent(categoryId)}`, {
+  const response = await apiFetch(apiUrl(`/categories/${encodeURIComponent(categoryId)}`), {
     method: "PATCH",
     headers: await requestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ isActive }),
@@ -127,7 +146,7 @@ export const renameCategory = async (
   categoryId: string,
   name: string,
 ): Promise<Category> => {
-  const response = await apiFetch(`${API_BASE}/categories/${encodeURIComponent(categoryId)}`, {
+  const response = await apiFetch(apiUrl(`/categories/${encodeURIComponent(categoryId)}`), {
     method: "PATCH",
     headers: await requestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ name }),
@@ -147,7 +166,7 @@ export const postEntry = async (
   categoryId: string,
   timestamp?: string,
 ): Promise<Entry> => {
-  const response = await apiFetch(`${API_BASE}/entries`, {
+  const response = await apiFetch(apiUrl("/entries"), {
     method: "POST",
     headers: await requestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(timestamp ? { categoryId, timestamp } : { categoryId }),
@@ -170,7 +189,7 @@ export const fetchEntriesLocal = async (
 ): Promise<EntriesLocalResponse> => {
   const params = new URLSearchParams({ timezone, date, period });
   const response = await apiFetch(
-    `${API_BASE}/entries-local?${params.toString()}`,
+    `${apiUrl("/entries-local")}?${params.toString()}`,
     { headers: await requestHeaders() },
   );
 
