@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Trace">
+  <defs>
+    <linearGradient id="bg" x1="10" y1="8" x2="54" y2="58" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1a202b" />
+      <stop offset="1" stop-color="#111721" />
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#bg)" />
+  <g clip-path="url(#timelineClip)">
+    <rect x="12" y="26" width="8" height="12" fill="#df2935" />
+    <rect x="20" y="26" width="18" height="12" fill="#17c5c5" />
+    <rect x="38" y="26" width="6" height="12" fill="#f466a8" />
+    <rect x="44" y="26" width="8" height="12" fill="#10b894" />
+    <rect x="12" y="26" width="40" height="3" fill="#ffffff" opacity=".16" />
+  </g>
+  <rect x="12" y="26" width="40" height="12" rx="6" fill="none" stroke="#ffffff" stroke-opacity=".16" />
+  <defs>
+    <clipPath id="timelineClip">
+      <rect x="12" y="26" width="40" height="12" rx="6" />
+    </clipPath>
+  </defs>
+</svg>
