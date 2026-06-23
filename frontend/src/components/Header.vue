@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 const props = defineProps<{
   dayLabel: string
@@ -17,6 +17,10 @@ const emit = defineEmits<{
 
 const isEditingProfile = ref(false)
 const draftDisplayName = ref('')
+const appTitle = computed(() => {
+  const name = props.displayName.trim()
+  return name ? `${name}'s Trace` : 'Your Trace'
+})
 
 watch(
   () => props.displayName,
@@ -52,8 +56,8 @@ const saveProfile = () => {
 <template>
   <header class="header">
     <div class="title">
-      <h1>Time Tracker</h1>
-      <p>UTC-backed, local-day timeline</p>
+      <h1>{{ appTitle }}</h1>
+      <p>See where your time goes and how your days take shape.</p>
     </div>
     <div class="day-controls">
       <button class="ghost" @click="emit('shiftDay', -1)">Previous</button>

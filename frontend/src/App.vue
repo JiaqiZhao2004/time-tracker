@@ -352,12 +352,13 @@ onUnmounted(() => {
 
 <template>
   <div v-if="authStatus === 'checking'" class="app auth-screen">
-    <h1>Time Tracker</h1>
+    <h1>Trace</h1>
     <p>Loading...</p>
   </div>
 
   <div v-else-if="authStatus === 'signedOut'" class="app auth-screen">
-    <h1>Time Tracker</h1>
+    <h1>Trace</h1>
+    <p>See where your time goes and how your days take shape.</p>
     <button class="primary-auth" type="button" @click="handleSignIn">Sign in with Google</button>
     <p v-if="authErrorMessage" class="auth-error">{{ authErrorMessage }}</p>
   </div>

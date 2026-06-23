@@ -1,14 +1,19 @@
-# Time Tracker
+# Trace: A Time Observability App
 
-![Time Tracker Demo](demo.png)
+![Trace Demo](demo.png)
 
-A modern, cloud-native time tracking application built with a serverless architecture on AWS, featuring real-time data visualization and one-click category tracking.
+Trace helps people see the shape of their time: what they spent it on, when
+patterns repeat, and where they have room to adjust. It is a modern,
+cloud-native time tracking application built with a serverless architecture on
+AWS, featuring real-time data visualization, one-click category tracking, and
+Google sign-in through Amazon Cognito.
 
 ## Architecture Overview
 
 - **Frontend**: Vue 3 + TypeScript + Vite, deployed to S3 + CloudFront via GitHub Actions
 - **Backend**: AWS Lambda (Python 3.14) + API Gateway
 - **Database**: DynamoDB with single-table design
+- **Auth**: Amazon Cognito Hosted UI with Google federation and API Gateway JWT authorization
 - **CI/CD**: GitHub Actions for independent frontend and backend deployment
 
 ## Features
@@ -18,10 +23,12 @@ A modern, cloud-native time tracking application built with a serverless archite
 - **Interactive timeline visualization** showing daily activity distribution
 - **Local timezone support** with UTC-backed storage for data consistency
 - **Real-time updates** with optimistic UI patterns
+- **Personal time history** stored per authenticated user
 
 ### Technical Highlights
 - **Serverless architecture**: Zero server maintenance, automatic scaling, pay-per-use pricing
 - **DynamoDB single-table design**: Optimized access patterns with composite keys for efficient queries
+- **Cognito authentication**: Google Hosted UI sign-in, OAuth authorization-code flow, ID-token API authorization, Hosted UI logout, and email allowlisting
 - **RESTful API**: Clean API design with proper HTTP semantics via API Gateway
 - **Type-safe frontend**: Full TypeScript implementation with Vue 3 Composition API
 - **Responsive UI**: Compatible with both Mobile and Desktop views
@@ -46,7 +53,8 @@ npm run dev
 ### Backend & Infrastructure
 - **AWS Lambda**: Serverless compute with Python runtime
 - **FastAPI**: Local v2 API service for development against DynamoDB
-- **API Gateway**: RESTful API endpoint management with CORS support
+- **API Gateway**: RESTful API endpoint management with CORS and JWT authorizer support
+- **Amazon Cognito**: Hosted UI, Google federation, OAuth client, user pool domain, callback URLs, and logout URLs
 - **DynamoDB**: NoSQL database with provisioned or on-demand capacity
 - **IAM**: Fine-grained access control for Lambda execution roles
 
@@ -95,6 +103,15 @@ provider on the first pass. Set these SAM parameters:
 - `AuthCallbackUrls` and `AuthLogoutUrls` to the frontend origins, for example
   `https://example.cloudfront.net,http://localhost:5173`.
 
+The Cognito resources in `template.yaml` include:
+
+- A user pool that uses email as the username and verifies email addresses.
+- A Google identity provider with `openid`, `email`, and `profile` scopes.
+- A public SPA user pool client using the OAuth authorization-code flow.
+- A Cognito Hosted UI domain for sign-in and logout redirects.
+- An API Gateway HTTP API JWT authorizer that validates Cognito ID tokens.
+- Backend email allowlisting through `ALLOWED_USER_EMAILS`.
+
 The stack output `ApiBaseUrl` is the value to provide as `VITE_API_BASE` when
 building the frontend. Also set `VITE_COGNITO_AUTHORITY` from
 `CognitoAuthority`, `VITE_COGNITO_CLIENT_ID` from `CognitoUserPoolClientId`,
@@ -108,9 +125,10 @@ sam build --use-container
 sam deploy
 ```
 
-SAM asks whether `TimeTrackerBackendFunction` can remain unauthenticated once
-for each public HTTP API route. This application currently relies on public
-API endpoints, so accept those prompts only when that is intended.
+SAM may ask whether `TimeTrackerBackendFunction` can remain unauthenticated once
+for each HTTP API route. The HTTP API is protected by the default Cognito JWT
+authorizer in `template.yaml`; accept the prompts when SAM is referring to the
+Lambda event permission model, not a deliberate unauthenticated app surface.
 
 #### Automated Backend Deployment
 
@@ -167,10 +185,11 @@ Its v2 endpoints require user-scoped category IDs:
 - `POST /entries` accepts `categoryId` and a timezone-aware `timestamp`.
 - `GET /entries-local` accepts `timezone`, `date`, and optional `period=day|week` query parameters; it returns the resolved `period`, and weekly ranges use the Monday-starting local week containing `date`.
 
-All deployed endpoints require `Authorization: Bearer <Cognito ID token>`.
-For local backend development only, set `DEV_AUTH_USER_ID`,
-`DEV_AUTH_EMAIL`, and optionally `DEV_AUTH_DISPLAY_NAME` to bypass API Gateway
-JWT claims while running Uvicorn.
+All deployed endpoints require `Authorization: Bearer <Cognito ID token>`. The
+frontend obtains that token through the Cognito Hosted UI Google sign-in flow and
+adds it to API requests automatically. For local backend development only, set
+`DEV_AUTH_USER_ID`, `DEV_AUTH_EMAIL`, and optionally `DEV_AUTH_DISPLAY_NAME` to
+bypass API Gateway JWT claims while running Uvicorn.
 
 To migrate the existing single-user `USER#roy` data after signing in once with
 Google and finding the Cognito `sub`, run a dry run first:
@@ -202,5 +221,4 @@ To run backend tests:
 
 ## Future Enhancements
 
-- Custom domain with AWS Route 53
 - Custom domain with AWS Route 53
