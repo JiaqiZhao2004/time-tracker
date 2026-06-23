@@ -3,14 +3,21 @@
   line-height: 1.5;
   font-weight: 400;
 
-  color-scheme: light dark;
+  color-scheme: dark;
   color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  background-color: #0d1117;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+html {
+  min-width: 320px;
+  min-height: 100%;
+  overflow-x: clip;
+  background: #0d1117;
 }
 
 a {
@@ -24,11 +31,10 @@ a:hover {
 
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
   min-width: 320px;
-  min-height: 100vh;
-  overflow-x: hidden;
+  min-height: 100%;
+  overflow-x: clip;
+  background: #0d1117;
 }
 
 h1 {
@@ -60,29 +66,15 @@ button:focus-visible {
 }
 
 #app {
-  max-width: 1280px;
   margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
   width: 100%;
+  min-height: 100svh;
   box-sizing: border-box;
+  overflow-x: clip;
 }
 
 @media (max-width: 768px) {
   #app {
-    padding: 1rem;
-  }
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
+    width: 100%;
   }
 }

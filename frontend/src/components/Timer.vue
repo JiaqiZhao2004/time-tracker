@@ -89,11 +89,15 @@ const formatTime = (ms: number): string => {
 
 <style scoped>
 .timer {
-  background: #1a1d24;
-  border-radius: 12px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.076), rgba(255, 255, 255, 0.028)),
+    rgba(16, 21, 29, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 18px;
   padding: 1.5rem;
   margin-top: 2rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 20px 44px rgba(0, 0, 0, 0.26);
+  backdrop-filter: blur(14px);
 }
 
 .timer-header {
@@ -102,7 +106,7 @@ const formatTime = (ms: number): string => {
   align-items: center;
   margin-bottom: 1.5rem;
   padding-bottom: 1rem;
-  border-bottom: 1px solid #2a2e38;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .timer-title {
@@ -122,7 +126,8 @@ const formatTime = (ms: number): string => {
 .period-toggle {
   display: inline-flex;
   padding: 0.2rem;
-  background: #11141b;
+  background: rgba(5, 8, 13, 0.66);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 999px;
 }
 
@@ -137,14 +142,14 @@ const formatTime = (ms: number): string => {
 }
 
 .period-toggle button.active {
-  background: #6c63ff;
-  color: #f5f5f5;
+  background: #5ce0c7;
+  color: #071018;
 }
 
 .total-time {
   font-size: 1.25rem;
   font-weight: 600;
-  color: #6c63ff;
+  color: #5ce0c7;
   white-space: nowrap;
 }
 
@@ -171,13 +176,15 @@ const formatTime = (ms: number): string => {
   justify-content: space-between;
   align-items: center;
   padding: 0.875rem 1rem;
-  background: #21252e;
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 8px;
-  transition: background 0.2s ease;
+  transition: background 0.2s ease, transform 0.2s ease;
 }
 
 .category-item:hover {
-  background: #272b36;
+  background: rgba(255, 255, 255, 0.082);
+  transform: translateY(-1px);
 }
 
 .category-info {

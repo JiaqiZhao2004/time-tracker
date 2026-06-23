@@ -302,11 +302,14 @@ const updateCategoryStatus = async (category: DisplayCategory, isActive: boolean
 }
 
 .controls.editing {
-  background: #1a1d23;
-  border: 1px solid #2a2d35;
-  border-radius: 16px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.032)),
+    rgba(16, 21, 29, 0.84);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 18px;
   padding: 1.25rem;
   box-shadow: 0 20px 35px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(14px);
 }
 
 .controls-header {
@@ -347,30 +350,35 @@ const updateCategoryStatus = async (category: DisplayCategory, isActive: boolean
 .category-tile {
   min-height: 48px;
   color: #fff;
-  font-weight: 600;
+  font-weight: 750;
   padding: 0.85rem 1rem;
   border-radius: 12px;
   box-sizing: border-box;
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 14px 28px rgba(0, 0, 0, 0.22);
 }
 
 .category-button {
   border: none;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.22);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
 }
 
 .category-button:hover {
   transform: translateY(-2px);
+  filter: saturate(1.08) brightness(1.04);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.26), 0 18px 36px rgba(0, 0, 0, 0.28);
 }
 
 .edit-categories-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: transparent;
-  border: 1px solid #3a3f4b;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.095), rgba(255, 255, 255, 0.04)),
+    rgba(15, 20, 28, 0.76);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   color: #b1b7c3;
-  box-shadow: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09);
 }
 
 .category-edit-lock {
@@ -424,8 +432,8 @@ const updateCategoryStatus = async (category: DisplayCategory, isActive: boolean
 }
 
 .edit-categories-button:hover {
-  background: #21252e;
-  border-color: #59606e;
+  background: rgba(92, 224, 199, 0.1);
+  border-color: rgba(92, 224, 199, 0.38);
   color: #f5f5f5;
 }
 
@@ -455,7 +463,9 @@ const updateCategoryStatus = async (category: DisplayCategory, isActive: boolean
 }
 
 .category-tile.disabled {
-  background: #14171c;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.052), rgba(255, 255, 255, 0.02)),
+    #14171c;
   border: 2px solid var(--category-color);
   color: #c4c8d0;
   box-shadow: none;
@@ -634,8 +644,9 @@ const updateCategoryStatus = async (category: DisplayCategory, isActive: boolean
 
 .last-selection {
   margin: 1rem 0 0;
-  color: #b1b7c3;
+  color: #c5ccd8;
   font-size: 0.9rem;
+  font-weight: 650;
 }
 
 .feedback {

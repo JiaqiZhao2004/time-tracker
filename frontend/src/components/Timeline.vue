@@ -108,10 +108,33 @@ const handleClick = (e: MouseEvent) => {
 
 <style scoped>
 .timeline {
-  background: #151926;
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.084), rgba(255, 255, 255, 0.028)),
+    rgba(15, 20, 30, 0.84);
+  border: 1px solid rgba(255, 255, 255, 0.11);
   border-radius: 18px;
   padding: 1.5rem;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(14px);
+}
+
+.timeline::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: linear-gradient(to bottom, black, transparent 74%);
+  pointer-events: none;
+}
+
+.timeline > * {
+  position: relative;
+  z-index: 1;
 }
 
 @media (max-width: 768px) {
@@ -128,9 +151,14 @@ const handleClick = (e: MouseEvent) => {
   margin-bottom: 1rem;
 }
 
+.timeline-header h2 {
+  margin: 0;
+  font-size: 1.28rem;
+}
+
 .timeline-bar {
   position: relative;
-  height: 32px;
+  height: 36px;
   overflow: visible;
   cursor: crosshair;
 }
@@ -138,7 +166,8 @@ const handleClick = (e: MouseEvent) => {
 .timeline-bar-track {
   position: absolute;
   inset: 0;
-  background: #0b0d14;
+  background: rgba(5, 8, 13, 0.74);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 999px;
   overflow: hidden;
 }
@@ -221,7 +250,7 @@ const handleClick = (e: MouseEvent) => {
 .timeline-legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 1rem;
+  gap: 0.7rem;
   margin-top: 1.2rem;
   color: #cbd0da;
   font-size: 0.9rem;
@@ -238,6 +267,10 @@ const handleClick = (e: MouseEvent) => {
   display: flex;
   align-items: center;
   gap: 0.45rem;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.045);
+  padding: 0.34rem 0.6rem;
 }
 
 .legend-color {

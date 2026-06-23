@@ -385,16 +385,50 @@ onUnmounted(() => {
 
 <template>
   <div v-if="authStatus === 'checking'" class="app auth-screen">
-    <h1>Trace</h1>
-    <p>Loading...</p>
+    <div class="auth-copy">
+      <p class="eyebrow">Trace</p>
+      <h1>Your day, made visible.</h1>
+      <p>Loading your workspace...</p>
+    </div>
   </div>
 
   <div v-else-if="authStatus === 'signedOut'" class="app auth-screen">
-    <h1>Trace</h1>
-    <p>See where your time goes and how your days take shape.</p>
-    <button class="primary-auth" type="button" @click="handleSignIn">Sign in with Google</button>
-    <button class="secondary-auth" type="button" @click="handleTryGuest">Try as guest</button>
-    <p v-if="authErrorMessage" class="auth-error">{{ authErrorMessage }}</p>
+    <div class="auth-copy">
+      <p class="eyebrow">Trace</p>
+      <h1>Your day, made visible.</h1>
+      <p>See where your time goes, spot the shape of your work, and add entries without breaking focus.</p>
+      <div class="auth-actions">
+        <button class="primary-auth" type="button" @click="handleSignIn">Sign in with Google</button>
+        <button class="secondary-auth" type="button" @click="handleTryGuest">Try as guest</button>
+      </div>
+      <p v-if="authErrorMessage" class="auth-error">{{ authErrorMessage }}</p>
+    </div>
+    <div class="product-preview" aria-hidden="true">
+      <div class="preview-toolbar">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+      <div class="preview-title-row">
+        <div>
+          <span class="preview-kicker">Today</span>
+          <strong>8h 20m tracked</strong>
+        </div>
+        <span class="preview-pill">Live</span>
+      </div>
+      <div class="preview-timeline">
+        <span class="block plan"></span>
+        <span class="block build"></span>
+        <span class="block focus"></span>
+        <span class="block break"></span>
+      </div>
+      <div class="preview-grid">
+        <span>Design</span>
+        <span>Deep Work</span>
+        <span>Admin</span>
+        <span>Break</span>
+      </div>
+    </div>
   </div>
 
   <div v-else class="app">
@@ -444,51 +478,106 @@ onUnmounted(() => {
 <style scoped>
 :global(body) {
   margin: 0;
+  min-height: 100svh;
+  overflow-x: clip;
   font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: #0f1115;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(78, 201, 176, 0.22), transparent 28rem),
+    radial-gradient(circle at 86% 4%, rgba(255, 196, 87, 0.16), transparent 24rem),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.045) 0 1px, transparent 1px 12px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 84px),
+    #0d1117;
+  background-attachment: fixed;
   color: #f5f5f5;
+}
+
+:global(body::before) {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(120deg, rgba(13, 17, 23, 0.1), rgba(13, 17, 23, 0.78) 55%),
+    radial-gradient(circle at 50% 100%, rgba(108, 99, 255, 0.12), transparent 36rem);
 }
 
 .app {
   max-width: 1100px;
   margin: 0 auto;
-  padding: 2.5rem 1.5rem 4rem;
+  padding: 2rem 1.5rem 4rem;
+  box-sizing: border-box;
+  min-height: 100svh;
 }
 
 .auth-screen {
-  min-height: 80vh;
+  width: min(100%, 1180px);
+  min-height: 100svh;
+  padding: clamp(1.5rem, 5vh, 3.5rem) 1.5rem;
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(320px, 0.75fr);
+  align-items: center;
+  gap: clamp(2rem, 6vw, 5rem);
+}
+
+.auth-copy {
   display: flex;
   flex-direction: column;
-  justify-content: center;
   align-items: flex-start;
   gap: 1rem;
 }
 
+.eyebrow {
+  margin: 0;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  color: #f4d17a;
+  padding: 0.32rem 0.72rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .auth-screen h1 {
   margin: 0;
-  font-size: 2.2rem;
+  max-width: 9ch;
+  font-size: clamp(3.2rem, 8vw, 6.5rem);
+  line-height: 0.92;
+  letter-spacing: 0;
 }
 
 .auth-screen p {
   margin: 0;
+  max-width: 38rem;
   color: #b1b7c3;
+  font-size: 1.08rem;
+}
+
+.auth-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  margin-top: 0.4rem;
 }
 
 .primary-auth {
   border: 0;
-  background: #f5f5f5;
-  color: #0f1115;
-  padding: 0.7rem 1rem;
+  background: linear-gradient(135deg, #f7d874, #5ce0c7);
+  color: #10151c;
+  padding: 0.78rem 1.05rem;
   border-radius: 8px;
   cursor: pointer;
-  font-weight: 700;
+  font-weight: 800;
+  box-shadow: 0 18px 32px rgba(64, 211, 190, 0.18);
 }
 
 .secondary-auth {
-  border: 1px solid #3a3f4b;
-  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
   color: #f5f5f5;
-  padding: 0.7rem 1rem;
+  padding: 0.78rem 1.05rem;
   border-radius: 8px;
   cursor: pointer;
   font-weight: 700;
@@ -496,5 +585,145 @@ onUnmounted(() => {
 
 .auth-error {
   color: #ffb4b4;
+}
+
+.product-preview {
+  position: relative;
+  overflow: hidden;
+  min-height: 360px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 24px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.045)),
+    rgba(15, 20, 28, 0.86);
+  box-shadow: 0 34px 90px rgba(0, 0, 0, 0.34);
+  padding: 1.1rem;
+}
+
+.product-preview::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: linear-gradient(to bottom, black, transparent 82%);
+  pointer-events: none;
+}
+
+.preview-toolbar,
+.preview-title-row,
+.preview-timeline,
+.preview-grid {
+  position: relative;
+  z-index: 1;
+}
+
+.preview-toolbar {
+  display: flex;
+  gap: 0.45rem;
+  margin-bottom: 3.5rem;
+}
+
+.preview-toolbar span {
+  width: 0.62rem;
+  height: 0.62rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.preview-title-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.preview-title-row strong {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.preview-kicker {
+  color: #a8b0bd;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.preview-pill {
+  border: 1px solid rgba(92, 224, 199, 0.36);
+  border-radius: 999px;
+  background: rgba(92, 224, 199, 0.13);
+  color: #8af2df;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.preview-timeline {
+  display: grid;
+  grid-template-columns: 0.75fr 1.55fr 1.1fr 0.45fr;
+  height: 54px;
+  overflow: hidden;
+  margin: 2rem 0 1.3rem;
+  border-radius: 999px;
+  background: rgba(5, 8, 13, 0.66);
+  padding: 0.35rem;
+  gap: 0.35rem;
+}
+
+.block {
+  border-radius: 999px;
+}
+
+.plan {
+  background: #f4c95d;
+}
+
+.build {
+  background: #5ce0c7;
+}
+
+.focus {
+  background: #8b7dff;
+}
+
+.break {
+  background: #ff8b6d;
+}
+
+.preview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+}
+
+.preview-grid span {
+  min-height: 62px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.065);
+  display: grid;
+  place-items: center;
+  color: #e8ebef;
+  font-weight: 800;
+}
+
+@media (max-width: 860px) {
+  .auth-screen {
+    grid-template-columns: 1fr;
+    align-items: start;
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+  }
+
+  .product-preview {
+    min-height: 300px;
+  }
 }
 </style>

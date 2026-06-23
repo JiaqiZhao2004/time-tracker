@@ -92,11 +92,15 @@ const handleSubmit = async () => {
 
 <style scoped>
 .manual-entry {
-  background: #1a1d23;
-  border: 1px solid #2a2d35;
-  border-radius: 14px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.076), rgba(255, 255, 255, 0.028)),
+    rgba(16, 21, 29, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 16px;
   padding: 1.25rem 1.5rem;
   margin: 1.5rem 0;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(14px);
 }
 
 .section-title {
@@ -146,9 +150,9 @@ label {
 
 select {
   appearance: none;
-  background: #0f1115;
+  background: rgba(7, 10, 16, 0.76);
   color: #f5f5f5;
-  border: 1px solid #2a2d35;
+  border: 1px solid rgba(255, 255, 255, 0.11);
   border-radius: 8px;
   padding: 0.6rem 2.2rem 0.6rem 0.75rem;
   font-size: 0.9rem;
@@ -164,9 +168,9 @@ select:focus {
 }
 
 input[type='datetime-local'] {
-  background: #0f1115;
+  background: rgba(7, 10, 16, 0.76);
   color: #f5f5f5;
-  border: 1px solid #2a2d35;
+  border: 1px solid rgba(255, 255, 255, 0.11);
   border-radius: 8px;
   padding: 0.6rem 0.75rem;
   font-size: 0.9rem;
@@ -180,8 +184,8 @@ input[type='datetime-local']:focus {
 }
 
 .submit-btn {
-  background: #6c63ff;
-  color: #fff;
+  background: linear-gradient(135deg, #5ce0c7, #8b7dff);
+  color: #071018;
   border: none;
   border-radius: 8px;
   padding: 0.6rem 1.4rem;
@@ -190,6 +194,7 @@ input[type='datetime-local']:focus {
   cursor: pointer;
   transition: opacity 0.2s, transform 0.2s;
   white-space: nowrap;
+  box-shadow: 0 14px 26px rgba(92, 224, 199, 0.16);
 }
 
 .submit-btn:hover:not(:disabled) {

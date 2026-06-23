@@ -59,6 +59,7 @@ const guestProfileNotice = 'Guest mode uses a shared profile. Sign in to persona
 <template>
   <header class="header">
     <div class="title">
+      <span class="product-mark">Trace</span>
       <h1>{{ appTitle }}</h1>
       <p>See where your time goes and how your days take shape.</p>
     </div>
@@ -118,6 +119,15 @@ const guestProfileNotice = 'Guest mode uses a shared profile. Sign in to persona
   justify-content: space-between;
   gap: 1.5rem;
   align-items: center;
+  margin-bottom: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 22px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.095), rgba(255, 255, 255, 0.035)),
+    rgba(14, 18, 25, 0.78);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+  padding: 1.25rem;
+  backdrop-filter: blur(18px);
 }
 
 .header .title {
@@ -129,7 +139,21 @@ const guestProfileNotice = 'Guest mode uses a shared profile. Sign in to persona
 
 .header h1 {
   margin: 0;
-  font-size: 2.2rem;
+  font-size: clamp(2rem, 4vw, 3rem);
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.product-mark {
+  border: 1px solid rgba(244, 209, 122, 0.22);
+  border-radius: 999px;
+  background: rgba(244, 209, 122, 0.08);
+  color: #f4d17a;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 @media (max-width: 768px) {
@@ -152,18 +176,23 @@ const guestProfileNotice = 'Guest mode uses a shared profile. Sign in to persona
 
 .day-label {
   padding: 0.4rem 0.8rem;
-  background: #1b1f2a;
+  background: rgba(255, 255, 255, 0.08);
   border-radius: 999px;
   font-weight: 600;
 }
 
 .ghost {
-  border: 1px solid #2f3645;
-  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  background: rgba(255, 255, 255, 0.045);
   color: #f5f5f5;
   padding: 0.45rem 0.85rem;
   border-radius: 8px;
   cursor: pointer;
+}
+
+.ghost:hover {
+  border-color: rgba(92, 224, 199, 0.42);
+  background: rgba(92, 224, 199, 0.08);
 }
 
 .ghost:disabled {
@@ -196,8 +225,8 @@ const guestProfileNotice = 'Guest mode uses a shared profile. Sign in to persona
 }
 
 .profile-name {
-  border: 1px solid #2f3645;
-  background: #1b1f2a;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  background: rgba(255, 255, 255, 0.08);
   color: #f5f5f5;
   padding: 0.45rem 0.75rem;
   border-radius: 8px;
