@@ -3,7 +3,10 @@ import { createCategory, fetchCategories, fetchEntriesLocalWeek, postEntry } fro
 
 vi.mock('./auth', () => ({
   getAuthorizationHeader: vi.fn(async () => ({ Authorization: 'Bearer test-token' })),
+  signIn: vi.fn(async () => undefined),
 }))
+
+const auth = await import('./auth')
 
 const dates = [
   '2026-05-25',
@@ -23,6 +26,7 @@ const response = (body: unknown): Response =>
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  vi.mocked(auth.signIn).mockClear()
 })
 
 describe('fetchEntriesLocalWeek', () => {
@@ -71,6 +75,20 @@ describe('authenticated API requests', () => {
     expect(fetchMock).toHaveBeenCalledWith('http://localhost:8000/categories', {
       headers: { Authorization: 'Bearer test-token' },
     })
+  })
+
+  it('starts sign-in redirect when the backend says the session is unauthorized', async () => {
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) =>
+      new Response(JSON.stringify({ detail: 'Missing authenticated user' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(fetchCategories()).rejects.toThrow('Missing authenticated user')
+
+    expect(auth.signIn).toHaveBeenCalledTimes(1)
   })
 
   it('does not send user_id in mutation bodies', async () => {

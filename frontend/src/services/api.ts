@@ -3,7 +3,7 @@
  */
 import type { Category } from "../types/category";
 import type { Entry } from "../types/entry";
-import { getAuthorizationHeader } from "./auth";
+import { getAuthorizationHeader, signIn } from "./auth";
 
 export type EntriesPeriod = "day" | "week";
 
@@ -45,8 +45,17 @@ const errorMessage = async (response: Response, fallback: string): Promise<strin
   return fallback;
 };
 
+const apiFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+  const response = await fetch(input, init);
+  if (response.status === 401) {
+    await signIn();
+  }
+
+  return response;
+};
+
 export const fetchMe = async (): Promise<UserProfile> => {
-  const response = await fetch(`${API_BASE}/me`, {
+  const response = await apiFetch(`${API_BASE}/me`, {
     headers: await requestHeaders(),
   });
 
@@ -58,7 +67,7 @@ export const fetchMe = async (): Promise<UserProfile> => {
 };
 
 export const updateMe = async (displayName: string): Promise<UserProfile> => {
-  const response = await fetch(`${API_BASE}/me`, {
+  const response = await apiFetch(`${API_BASE}/me`, {
     method: "PATCH",
     headers: await requestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ displayName }),
@@ -72,7 +81,7 @@ export const updateMe = async (displayName: string): Promise<UserProfile> => {
 };
 
 export const fetchCategories = async (): Promise<Category[]> => {
-  const response = await fetch(`${API_BASE}/categories`, {
+  const response = await apiFetch(`${API_BASE}/categories`, {
     headers: await requestHeaders(),
   });
 
@@ -84,7 +93,7 @@ export const fetchCategories = async (): Promise<Category[]> => {
 };
 
 export const createCategory = async (name: string): Promise<Category> => {
-  const response = await fetch(`${API_BASE}/categories`, {
+  const response = await apiFetch(`${API_BASE}/categories`, {
     method: "POST",
     headers: await requestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ name }),
@@ -101,7 +110,7 @@ export const setCategoryActive = async (
   categoryId: string,
   isActive: boolean,
 ): Promise<Category> => {
-  const response = await fetch(`${API_BASE}/categories/${encodeURIComponent(categoryId)}`, {
+  const response = await apiFetch(`${API_BASE}/categories/${encodeURIComponent(categoryId)}`, {
     method: "PATCH",
     headers: await requestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ isActive }),
@@ -118,7 +127,7 @@ export const renameCategory = async (
   categoryId: string,
   name: string,
 ): Promise<Category> => {
-  const response = await fetch(`${API_BASE}/categories/${encodeURIComponent(categoryId)}`, {
+  const response = await apiFetch(`${API_BASE}/categories/${encodeURIComponent(categoryId)}`, {
     method: "PATCH",
     headers: await requestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ name }),
@@ -138,7 +147,7 @@ export const postEntry = async (
   categoryId: string,
   timestamp?: string,
 ): Promise<Entry> => {
-  const response = await fetch(`${API_BASE}/entries`, {
+  const response = await apiFetch(`${API_BASE}/entries`, {
     method: "POST",
     headers: await requestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(timestamp ? { categoryId, timestamp } : { categoryId }),
@@ -160,7 +169,7 @@ export const fetchEntriesLocal = async (
   period: EntriesPeriod = "day",
 ): Promise<EntriesLocalResponse> => {
   const params = new URLSearchParams({ timezone, date, period });
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE}/entries-local?${params.toString()}`,
     { headers: await requestHeaders() },
   );
