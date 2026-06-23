@@ -52,6 +52,8 @@ const saveProfile = () => {
   emit('displayNameChange', nextName)
   isEditingProfile.value = false
 }
+
+const guestProfileNotice = 'Guest mode uses a shared profile. Sign in to personalize your Trace.'
 </script>
 
 <template>
@@ -81,7 +83,14 @@ const saveProfile = () => {
         </button>
       </form>
       <template v-else>
-        <button class="profile-name" type="button" @click="startProfileEdit">
+        <button
+          class="profile-name"
+          type="button"
+          :disabled="isGuest"
+          :aria-disabled="isGuest"
+          :title="isGuest ? guestProfileNotice : 'Edit display name'"
+          @click="startProfileEdit"
+        >
           {{ displayName }}
         </button>
         <button class="ghost" type="button" @click="emit('signOut')">
@@ -185,6 +194,11 @@ const saveProfile = () => {
   border-radius: 8px;
   cursor: pointer;
   font-weight: 700;
+}
+
+.profile-name:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
 }
 
 .profile-error {

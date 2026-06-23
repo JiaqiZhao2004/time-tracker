@@ -413,6 +413,7 @@ onUnmounted(() => {
     <Buttons
       :categories="categories"
       :lastCategory="lastCategory"
+      :isGuest="authStatus === 'guest'"
       @logCategory="logCategory"
       @categoryChanged="handleCategoryChanged"
     />

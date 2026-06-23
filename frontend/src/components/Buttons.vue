@@ -7,6 +7,7 @@ import type { Category, DisplayCategory } from '../types/category'
 const props = defineProps<{
   categories: DisplayCategory[]
   lastCategory: DisplayCategory | null
+  isGuest: boolean
 }>()
 
 const emit = defineEmits<{
@@ -30,6 +31,7 @@ const disabledCategories = computed(() => props.categories.filter((category) => 
 const operationInFlight = computed(
   () => isCreating.value || updatingCategoryId.value !== null || isRenaming.value,
 )
+const guestEditNotice = 'Guest mode uses shared curated categories. Sign in to create or rename categories.'
 
 const cancelRename = () => {
   editingCategoryId.value = null
@@ -38,6 +40,9 @@ const cancelRename = () => {
 }
 
 const toggleEditing = () => {
+  if (props.isGuest) {
+    return
+  }
   isEditing.value = !isEditing.value
   inputError.value = ''
   operationError.value = ''
@@ -152,7 +157,9 @@ const updateCategoryStatus = async (category: DisplayCategory, isActive: boolean
         class="category-button edit-categories-button"
         type="button"
         aria-label="Edit categories"
-        title="Edit categories"
+        :aria-disabled="isGuest"
+        :disabled="isGuest"
+        :title="isGuest ? guestEditNotice : 'Edit categories'"
         @click="toggleEditing"
       >
         <svg class="edit-categories-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -363,6 +370,18 @@ const updateCategoryStatus = async (category: DisplayCategory, isActive: boolean
   background: #21252e;
   border-color: #59606e;
   color: #f5f5f5;
+}
+
+.edit-categories-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.edit-categories-button:disabled:hover {
+  background: transparent;
+  border-color: #3a3f4b;
+  color: #b1b7c3;
 }
 
 .category-tile {

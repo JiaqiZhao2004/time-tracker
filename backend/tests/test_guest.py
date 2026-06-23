@@ -42,3 +42,39 @@ def test_guest_entry_writes_to_shared_public_partition(
 
     assert response.status_code == 200
     assert table.put_items[0]["PK"] == "USER#guest"
+
+
+def test_guest_profile_editing_is_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("DEV_AUTH_USER_ID", raising=False)
+    table = FakeTable()
+    app.state.table = table
+
+    with TestClient(app) as client:
+        response = client.patch("/guest/me", json={"displayName": "Demo"})
+    app.state.table = None
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Guest profile editing is disabled"
+    assert table.update_items == []
+
+
+def test_guest_category_text_editing_is_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("DEV_AUTH_USER_ID", raising=False)
+    table = FakeTable()
+    app.state.table = table
+
+    with TestClient(app) as client:
+        create_response = client.post("/guest/categories", json={"name": "Anything"})
+        rename_response = client.patch("/guest/categories/research", json={"name": "Anything"})
+    app.state.table = None
+
+    assert create_response.status_code == 403
+    assert rename_response.status_code == 403
+    assert create_response.json()["detail"] == "Guest category editing is disabled"
+    assert rename_response.json()["detail"] == "Guest category editing is disabled"
+    assert table.put_items == []
+    assert table.update_items == []

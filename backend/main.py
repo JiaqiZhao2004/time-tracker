@@ -479,7 +479,7 @@ def get_guest_me() -> UserProfile:
 
 @guest_router.patch("/me", response_model=UserProfile)
 def update_guest_me(payload: UserProfileUpdate) -> UserProfile:
-    return update_me(payload, guest_user())
+    raise HTTPException(status_code=403, detail="Guest profile editing is disabled")
 
 
 @app.get("/categories", response_model=list[CategoryRead])
@@ -589,12 +589,12 @@ def create_category(
 
 @guest_router.post("/categories", response_model=CategoryRead, status_code=201)
 def create_guest_category(payload: CategoryCreate) -> CategoryRead:
-    return create_category(payload, guest_user())
+    raise HTTPException(status_code=403, detail="Guest category editing is disabled")
 
 
 @guest_router.patch("/categories/{category_id}", response_model=CategoryRead)
 def update_guest_category(category_id: str, payload: CategoryUpdate) -> CategoryRead:
-    return update_category(category_id, payload, guest_user())
+    raise HTTPException(status_code=403, detail="Guest category editing is disabled")
 
 
 @app.patch("/categories/{category_id}", response_model=CategoryRead)
