@@ -1,48 +1,87 @@
-# Trace: A Time Observability App
+# Trace
 
-![Trace Demo](demo_v2.png)
+<p align="center">
+  <img src="demo_v2.png" alt="Trace app screenshot" width="900">
+</p>
 
-Trace helps people see the shape of their time: what they spent it on, when
-patterns repeat, and where they have room to adjust. It is a modern,
-cloud-native time tracking application built with a serverless architecture on
-AWS, featuring real-time data visualization, one-click category tracking, and
-Google sign-in through Amazon Cognito.
+<p align="center">
+  <a href="https://trace.royzhao.dev"><strong>Try Trace</strong></a>
+  |
+  <a href="#features">Features</a>
+  |
+  <a href="#local-development">Local development</a>
+  |
+  <a href="#deployment">Deployment</a>
+</p>
 
-## Architecture Overview
+<p align="center">
+  <a href="https://trace.royzhao.dev">
+    <img alt="Live app" src="https://img.shields.io/badge/live-trace.royzhao.dev-1f6feb?style=for-the-badge">
+  </a>
+  <img alt="Frontend" src="https://img.shields.io/badge/frontend-Vue%203%20%2B%20TypeScript-42b883?style=for-the-badge">
+  <img alt="Backend" src="https://img.shields.io/badge/backend-AWS%20Lambda%20%2B%20FastAPI-ff9900?style=for-the-badge">
+</p>
 
-- **Frontend**: Vue 3 + TypeScript + Vite, deployed to S3 + CloudFront via GitHub Actions
-- **Backend**: AWS Lambda (Python 3.14) + API Gateway
-- **Database**: DynamoDB with single-table design
-- **Auth**: Amazon Cognito Hosted UI with Google federation and API Gateway JWT authorization
-- **CI/CD**: GitHub Actions for independent frontend and backend deployment
+Trace is a time observability app for seeing where a day actually went. It
+combines fast category-based logging, a visual timeline, Google sign-in, and a
+serverless AWS backend so personal time history stays available across devices.
 
 ## Features
 
-### Core Functionality
-- **One-click time tracking** across nine life categories: coursework, work, prayer, rest, social, family, chores, self-study, exercise
-- **Interactive timeline visualization** showing daily activity distribution
-- **Local timezone support** with UTC-backed storage for data consistency
-- **Real-time updates** with optimistic UI patterns
-- **Personal time history** stored per authenticated user
+- **One-click time tracking** for daily categories such as coursework, work,
+  prayer, rest, social, family, chores, self-study, and exercise.
+- **Interactive daily and weekly views** that make time distribution easier to
+  scan than a plain table of entries.
+- **Manual entry support** for backfilling moments that were not captured live.
+- **Google sign-in through Amazon Cognito** with user-scoped profiles,
+  categories, and entries.
+- **Shared guest mode** for public exploration without requiring visitors to
+  create an account.
+- **Timezone-aware history** with UTC-backed storage and local-day queries.
+- **Responsive Vue UI** designed for both desktop and mobile use.
 
-### Technical Highlights
-- **Serverless architecture**: Zero server maintenance, automatic scaling, pay-per-use pricing
-- **DynamoDB single-table design**: Optimized access patterns with composite keys for efficient queries
-- **Cognito authentication**: Google Hosted UI sign-in, OAuth authorization-code flow, ID-token API authorization, Hosted UI logout, and optional email allowlisting
-- **RESTful API**: Clean API design with proper HTTP semantics via API Gateway
-- **Type-safe frontend**: Full TypeScript implementation with Vue 3 Composition API
-- **Responsive UI**: Compatible with both Mobile and Desktop views
+## Architecture
 
-## Tech Stack
+Trace is split into a static frontend and a serverless API.
+
+| Layer | Technology |
+| --- | --- |
+| Frontend | Vue 3, TypeScript, Vite, Vitest |
+| API | FastAPI, Mangum, AWS Lambda, API Gateway HTTP API |
+| Auth | Amazon Cognito Hosted UI, Google federation, JWT authorization |
+| Data | DynamoDB single-table design |
+| Delivery | S3, CloudFront, GitHub Actions, AWS SAM |
+
+The backend stores all user data in DynamoDB under user-scoped partition keys.
+API Gateway validates Cognito ID tokens in production, while local development
+can use development auth environment variables for faster iteration.
+
+## Repository
+
+```text
+.
++-- backend/          # FastAPI app, Lambda handler, API tests
++-- docs/adr/         # Architecture decision records
++-- frontend/         # Vue application and frontend tests
++-- migration/        # DynamoDB migration utilities
++-- template.yaml     # AWS SAM infrastructure template
+`-- README.md
+```
+
+## Local Development
+
+### Prerequisites
+
+- Node.js and npm
+- Python 3.14
+- AWS credentials with access to the configured DynamoDB table
+- AWS SAM CLI and Docker for Lambda builds
 
 ### Frontend
-- **Vue 3** with TypeScript
-- **Modular component architecture** for maintainability
-
-Frontend source lives in `frontend/`.
 
 ```bash
 cd frontend
+npm install
 VITE_API_BASE=http://localhost:8000 \
 VITE_COGNITO_AUTHORITY=https://cognito-idp.us-east-2.amazonaws.com/<user-pool-id> \
 VITE_COGNITO_CLIENT_ID=<user-pool-client-id> \
@@ -50,17 +89,10 @@ VITE_COGNITO_DOMAIN=https://<domain-prefix>.auth.us-east-2.amazoncognito.com \
 npm run dev
 ```
 
-### Backend & Infrastructure
-- **AWS Lambda**: Serverless compute with Python runtime
-- **FastAPI**: Local v2 API service for development against DynamoDB
-- **API Gateway**: RESTful API endpoint management with CORS and JWT authorizer support
-- **Amazon Cognito**: Hosted UI, Google federation, OAuth client, user pool domain, callback URLs, and logout URLs
-- **DynamoDB**: NoSQL database with provisioned or on-demand capacity
-- **IAM**: Fine-grained access control for Lambda execution roles
+For a pure local frontend pass, auth variables can be omitted, but production
+sign-in requires the Cognito values emitted by the SAM stack.
 
-The local FastAPI backend uses the v2 DynamoDB table `time-tracker-v2` and
-requires configured AWS credentials and an AWS region with access to that
-table.
+### Backend
 
 ```bash
 python -m venv .venv
@@ -68,11 +100,37 @@ python -m venv .venv
 .venv/bin/uvicorn backend.main:app --reload
 ```
 
-For AWS Lambda behind API Gateway, `template.yaml` defines an AWS SAM stack
-containing the Mangum-backed Lambda function, HTTP API routes, Cognito Hosted
-UI with Google sign-in, API Gateway JWT authorization, CORS settings, and
-permissions for the existing `time-tracker-v2` DynamoDB table. Deploy it from
-the repository root:
+The local API uses the v2 DynamoDB table, `time-tracker-v2`, unless configured
+otherwise. To bypass API Gateway JWT claims locally, set:
+
+```bash
+DEV_AUTH_USER_ID=local-user
+DEV_AUTH_EMAIL=local@example.com
+DEV_AUTH_DISPLAY_NAME="Local User"
+```
+
+## Testing
+
+Run frontend tests:
+
+```bash
+cd frontend
+npm test
+```
+
+Run backend tests:
+
+```bash
+.venv/bin/pip install -r backend/requirements-dev.txt
+.venv/bin/pytest backend/tests
+```
+
+## Deployment
+
+### Backend and Infrastructure
+
+`template.yaml` defines the SAM stack for Lambda, API Gateway, Cognito, CORS,
+and the permissions needed to access the existing DynamoDB table.
 
 ```bash
 sam validate --lint
@@ -80,119 +138,94 @@ sam build --use-container
 sam deploy --guided
 ```
 
-Run Docker before `sam build --use-container`; the container build ensures
-Python binary dependencies are packaged for the Lambda runtime. The SAM stack
-uses the DynamoDB table named by `TimeTrackerTableName` and does not create or
-delete that table.
+During the guided deploy, configure:
 
-On the guided deployment, set `AllowedOrigins` to the deployed frontend origin
-in addition to any local origins you still need, for example
-`https://example.cloudfront.net,http://localhost:5173`. Set
-`TimeTrackerTableName` if deploying against a table other than
-`time-tracker-v2`.
-
-For Google sign-in, first create a Google OAuth web client. After the first SAM
-deploy, add the stack output `GoogleOAuthRedirectUri` as an authorized redirect
-URI in that Google client, then deploy again if Cognito could not validate the
-provider on the first pass. Set these SAM parameters:
-
-- `GoogleOAuthClientId` and `GoogleOAuthClientSecret` from Google Cloud.
-- `AllowedUserEmails` to a comma-separated allowlist such as
-  `roy@example.com,friend@example.com`, or set it to `*` to allow any
+- `AllowedOrigins`: deployed frontend origins plus local origins as needed,
+  for example `https://trace.royzhao.dev,http://localhost:5173`.
+- `TimeTrackerTableName`: the target DynamoDB table name.
+- `GoogleOAuthClientId` and `GoogleOAuthClientSecret`: values from a Google
+  OAuth web client.
+- `AllowedUserEmails`: a comma-separated allowlist, or `*` to allow any
   authenticated Google user.
-- `CognitoDomainPrefix` to a globally unique Hosted UI domain prefix.
-- `AuthCallbackUrls` and `AuthLogoutUrls` to the frontend origins, for example
-  `https://example.cloudfront.net,http://localhost:5173`.
+- `CognitoDomainPrefix`: a globally unique Cognito Hosted UI domain prefix.
+- `AuthCallbackUrls` and `AuthLogoutUrls`: frontend callback/logout origins.
 
-The Cognito resources in `template.yaml` include:
+After the first deploy, add the stack output `GoogleOAuthRedirectUri` to the
+Google OAuth client as an authorized redirect URI. Then redeploy if Cognito
+could not validate the provider on the first pass.
 
-- A user pool that uses email as the username and verifies email addresses.
-- A Google identity provider with `openid`, `email`, and `profile` scopes.
-- A public SPA user pool client using the OAuth authorization-code flow.
-- A Cognito Hosted UI domain for sign-in and logout redirects.
-- An API Gateway HTTP API JWT authorizer that validates Cognito ID tokens.
-- Optional backend email allowlisting through `ALLOWED_USER_EMAILS`.
+The stack output `ApiBaseUrl` becomes `VITE_API_BASE` for frontend builds.
+Also use `CognitoAuthority`, `CognitoUserPoolClientId`, and
+`CognitoHostedUiDomain` for the corresponding frontend environment variables.
 
-The stack output `ApiBaseUrl` is the value to provide as `VITE_API_BASE` when
-building the frontend. Also set `VITE_COGNITO_AUTHORITY` from
-`CognitoAuthority`, `VITE_COGNITO_CLIENT_ID` from `CognitoUserPoolClientId`,
-and `VITE_COGNITO_DOMAIN` from `CognitoHostedUiDomain`.
-
-The first guided deployment saves choices such as the stack name, AWS region,
-and parameters to `samconfig.toml`. After that, rebuild and deploy with:
+After `samconfig.toml` has been created, deploy updates with:
 
 ```bash
 sam build --use-container
 sam deploy
 ```
 
-SAM may ask whether `TimeTrackerBackendFunction` can remain unauthenticated once
-for each HTTP API route. The HTTP API is protected by the default Cognito JWT
-authorizer in `template.yaml`; accept the prompts when SAM is referring to the
-Lambda event permission model, not a deliberate unauthenticated app surface.
+SAM may ask whether the Lambda function can remain unauthenticated for each
+HTTP API route. The HTTP API routes are protected by the default Cognito JWT
+authorizer in `template.yaml`; those prompts refer to Lambda event permissions,
+not an intentional public API surface.
 
-#### Automated Backend Deployment
+### Frontend
 
-Pushes to `main` that change `backend/**`, `template.yaml`, or
-`samconfig.toml` run `.github/workflows/deploy-backend.yml`. The workflow runs
-the backend test suite, validates and container-builds the SAM application,
-then runs an unattended `sam deploy` against the existing
-`time-tracker-sam-app` stack. Frontend-only pushes continue through the
-separate S3 and CloudFront workflow.
-
-The backend workflow assumes the dedicated OIDC role
-`arn:aws:iam::975050092888:role/GitHubActionsSamDeploy`. Configure that IAM
-role outside this stack with trust restricted to the `main` branch of
-`JiaqiZhao2004/time-tracker`, and grant the CloudFormation, Lambda, API
-Gateway, IAM, and SAM artifact-bucket permissions required to update this SAM
-application. The existing `GitHubActionsS3Deploy` role remains scoped to the
-frontend deployment. Configure the repository secrets
-`GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, and
-`ALLOWED_USER_EMAILS` for unattended backend deploys. Configure repository
-variables `VITE_COGNITO_AUTHORITY` and `VITE_COGNITO_CLIENT_ID` for frontend
-deploys, plus `VITE_COGNITO_DOMAIN` for Cognito logout.
-
-#### Troubleshooting SAM Uploads
-
-If deployment fails with `S3 Bucket does not exist` while uploading
-`TimeTrackerBackendFunction`, SAM's managed artifact bucket may have been
-deleted while its bootstrap CloudFormation stack remains. Recreate that
-managed bucket by deleting only the SAM bootstrap stack, then deploying again:
+The frontend is built with Vite and deployed as static assets to S3 behind
+CloudFront.
 
 ```bash
-aws cloudformation delete-stack \
-  --stack-name aws-sam-cli-managed-default \
-  --region us-east-2
-aws cloudformation wait stack-delete-complete \
-  --stack-name aws-sam-cli-managed-default \
-  --region us-east-2
-sam deploy
+cd frontend
+npm install
+npm run build
 ```
 
-This does not delete the `time-tracker-v2` DynamoDB table or the application
-stack `time-tracker-sam-app`.
+Production builds should provide:
 
-If packaging the Lambda without SAM, configure its handler as
-`backend.main.handler`, or `main.handler` when the contents of `backend/` are
-at the deployment root.
+```bash
+VITE_API_BASE=<api-gateway-base-url>
+VITE_COGNITO_AUTHORITY=<cognito-authority>
+VITE_COGNITO_CLIENT_ID=<cognito-client-id>
+VITE_COGNITO_DOMAIN=<cognito-hosted-ui-domain>
+```
 
-Its v2 endpoints require user-scoped category IDs:
+### CI/CD
+
+GitHub Actions deploy the frontend and backend independently:
+
+- Frontend workflow: `.github/workflows/deploy-frontend.yml`
+- Backend workflow: `.github/workflows/deploy-backend.yml`
+
+The backend workflow runs tests, validates the SAM template, builds the Lambda
+artifact in a container, and deploys the SAM application. Configure cloud
+credentials, OAuth secrets, and frontend environment variables in your
+repository settings rather than committing them to the repo.
+
+## API Summary
+
+Production endpoints require:
+
+```http
+Authorization: Bearer <Cognito ID token>
+```
+
+Main routes:
 
 - `GET /me` fetches or creates the authenticated user's profile.
-- `PATCH /me` accepts `displayName` and updates the authenticated user's profile.
+- `PATCH /me` updates `displayName`.
 - `GET /categories` returns active and inactive category definitions.
-- `POST /categories` accepts a validated category `name`, including emoji labels.
-- `PATCH /categories/{categoryId}` accepts one or both of `name` and `isActive` to rename, disable, or re-enable a category.
-- `POST /entries` accepts `categoryId` and a timezone-aware `timestamp`.
-- `GET /entries-local` accepts `timezone`, `date`, and optional `period=day|week` query parameters; it returns the resolved `period`, and weekly ranges use the Monday-starting local week containing `date`.
+- `POST /categories` creates a validated category.
+- `PATCH /categories/{categoryId}` renames, disables, or re-enables a category.
+- `POST /entries` creates a time entry with `categoryId` and timestamp.
+- `GET /entries-local` returns day or week entries for a local timezone/date.
 
-All deployed endpoints require `Authorization: Bearer <Cognito ID token>`. The
-frontend obtains that token through the Cognito Hosted UI Google sign-in flow and
-adds it to API requests automatically. For local backend development only, set
-`DEV_AUTH_USER_ID`, `DEV_AUTH_EMAIL`, and optionally `DEV_AUTH_DISPLAY_NAME` to
-bypass API Gateway JWT claims while running Uvicorn.
+Guest users can explore shared public tracking data, but profile and category
+mutations are intentionally blocked.
 
-To migrate the existing single-user `USER#roy` data after signing in once with
+## Migration
+
+To migrate legacy single-user data from `USER#roy` after signing in once with
 Google and finding the Cognito `sub`, run a dry run first:
 
 ```bash
@@ -204,22 +237,33 @@ python migration/migrate_user_partition.py \
   --dry-run
 ```
 
-Then run the same command without `--dry-run`. The script copies data items to
-`USER#<cognito-sub>`, writes the DynamoDB profile item, and leaves `USER#roy`
-in place for rollback.
+Then run the same command without `--dry-run`. The migration copies items to
+`USER#<cognito-sub>`, writes the DynamoDB profile item, and leaves the legacy
+partition in place for rollback.
 
-To run backend tests:
+## Troubleshooting
+
+If `sam deploy` fails with `S3 Bucket does not exist` while uploading the
+Lambda artifact, SAM's managed artifact bucket may have been deleted while its
+bootstrap CloudFormation stack remains. Recreate the managed bucket by deleting
+only the SAM bootstrap stack, then deploy again:
 
 ```bash
-.venv/bin/pip install -r backend/requirements-dev.txt
-.venv/bin/pytest backend/tests
+aws cloudformation delete-stack \
+  --stack-name aws-sam-cli-managed-default \
+  --region us-east-2
+aws cloudformation wait stack-delete-complete \
+  --stack-name aws-sam-cli-managed-default \
+  --region us-east-2
+sam deploy
 ```
 
-### Deployment & Hosting
-- **S3**: Static website hosting for production frontend builds
-- **CloudFront**: Global CDN for low-latency content delivery with edge caching
-- **GitHub Actions**: Automated CI/CD pipeline for build, test, and deployment
+This does not delete the application stack or the DynamoDB table.
 
-## Future Enhancements
+## Decisions
 
-- Custom domain with AWS Route 53
+Architecture decision records live in `docs/adr/`:
+
+- `0001-spa-refresh-token-renewal.md`
+- `0002-manual-cognito-custom-domain-for-now.md`
+- `0003-shared-public-guest-mode.md`

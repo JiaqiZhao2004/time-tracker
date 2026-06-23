@@ -153,13 +153,30 @@ const updateCategoryStatus = async (category: DisplayCategory, isActive: boolean
       >
         {{ item.name }}
       </button>
+      <span
+        v-if="isGuest"
+        class="locked-control category-edit-lock"
+        :data-tooltip="guestEditNotice"
+        tabindex="0"
+      >
+        <button
+          class="category-button edit-categories-button"
+          type="button"
+          aria-label="Edit categories"
+          disabled
+        >
+          <svg class="edit-categories-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M16.9 3.8a2.1 2.1 0 0 1 3 3L8 18.7 3.8 20.2 5.3 16z" />
+            <path d="m14.8 5.9 3.3 3.3" />
+          </svg>
+        </button>
+      </span>
       <button
+        v-else
         class="category-button edit-categories-button"
         type="button"
         aria-label="Edit categories"
-        :aria-disabled="isGuest"
-        :disabled="isGuest"
-        :title="isGuest ? guestEditNotice : 'Edit categories'"
+        title="Edit categories"
         @click="toggleEditing"
       >
         <svg class="edit-categories-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -354,6 +371,46 @@ const updateCategoryStatus = async (category: DisplayCategory, isActive: boolean
   border: 1px solid #3a3f4b;
   color: #b1b7c3;
   box-shadow: none;
+}
+
+.category-edit-lock {
+  position: relative;
+  display: inline-flex;
+  min-height: 48px;
+}
+
+.category-edit-lock .edit-categories-button {
+  width: 100%;
+  min-height: 48px;
+}
+
+.locked-control::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 0.55rem);
+  z-index: 5;
+  width: min(18rem, 70vw);
+  padding: 0.5rem 0.65rem;
+  border: 1px solid #3a3f4b;
+  border-radius: 8px;
+  background: #151923;
+  color: #f5f5f5;
+  font-size: 0.78rem;
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: left;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.32);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 0.25rem);
+  transition: opacity 0.14s ease, transform 0.14s ease;
+}
+
+.locked-control:hover::after,
+.locked-control:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
 .edit-categories-icon {
