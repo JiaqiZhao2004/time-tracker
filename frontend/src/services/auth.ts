@@ -5,6 +5,7 @@ const clientId = import.meta.env.VITE_COGNITO_CLIENT_ID
 const cognitoDomain = import.meta.env.VITE_COGNITO_DOMAIN
 const redirectUri = import.meta.env.VITE_AUTH_REDIRECT_URI ?? window.location.origin
 const logoutUri = import.meta.env.VITE_AUTH_LOGOUT_URI ?? window.location.origin
+const SIGNED_OUT_KEY = 'traceSignedOut'
 
 export const isAuthConfigured = Boolean(authority && clientId)
 
@@ -24,11 +25,27 @@ const userManager = isAuthConfigured
     })
   : null
 
+const isExplicitlySignedOut = (): boolean =>
+  typeof window !== 'undefined' && window.localStorage.getItem(SIGNED_OUT_KEY) === 'true'
+
+const markExplicitlySignedOut = (): void => {
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem(SIGNED_OUT_KEY, 'true')
+  }
+}
+
+const clearExplicitSignOut = (): void => {
+  if (typeof window !== 'undefined') {
+    window.localStorage.removeItem(SIGNED_OUT_KEY)
+  }
+}
+
 export const signIn = async (): Promise<void> => {
   if (!userManager) {
     throw new Error('Authentication is not configured')
   }
 
+  clearExplicitSignOut()
   await userManager.signinRedirect({
     extraQueryParams: { identity_provider: 'Google' },
   })
@@ -39,11 +56,18 @@ export const completeSignIn = async (): Promise<User> => {
     throw new Error('Authentication is not configured')
   }
 
-  return userManager.signinRedirectCallback()
+  const user = await userManager.signinRedirectCallback()
+  clearExplicitSignOut()
+  return user
 }
 
 export const getSignedInUser = async (): Promise<User | null> => {
   if (!userManager) {
+    return null
+  }
+
+  if (isExplicitlySignedOut()) {
+    await userManager.removeUser()
     return null
   }
 
@@ -77,6 +101,7 @@ export const signOut = async (): Promise<void> => {
     return
   }
 
+  markExplicitlySignedOut()
   await userManager.removeUser()
   if (cognitoDomain) {
     const params = new URLSearchParams({

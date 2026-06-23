@@ -7,6 +7,10 @@ type StoredUser = {
 
 type UserManagerInstance = {
   getUser: ReturnType<typeof vi.fn<() => Promise<StoredUser | null>>>
+  removeUser: ReturnType<typeof vi.fn<() => Promise<void>>>
+  signinRedirect: ReturnType<typeof vi.fn<() => Promise<void>>>
+  signinRedirectCallback: ReturnType<typeof vi.fn<() => Promise<StoredUser>>>
+  signoutRedirect: ReturnType<typeof vi.fn<() => Promise<void>>>
   signinSilent: ReturnType<typeof vi.fn<() => Promise<StoredUser | null>>>
   settings: Record<string, unknown>
 }
@@ -19,6 +23,10 @@ const authMocks = vi.hoisted(() => {
     UserManager: vi.fn((settings: Record<string, unknown>) => {
       const instance: UserManagerInstance = {
         getUser: vi.fn(async () => null),
+        removeUser: vi.fn(async () => undefined),
+        signinRedirect: vi.fn(async () => undefined),
+        signinRedirectCallback: vi.fn(async () => ({ expired: false, id_token: 'callback-id-token' })),
+        signoutRedirect: vi.fn(async () => undefined),
         signinSilent: vi.fn(async () => null),
         settings,
       }
@@ -34,6 +42,7 @@ vi.mock('oidc-client-ts', () => authMocks)
 const importConfiguredAuth = async () => {
   vi.stubEnv('VITE_COGNITO_AUTHORITY', 'https://cognito-idp.us-east-2.amazonaws.com/pool')
   vi.stubEnv('VITE_COGNITO_CLIENT_ID', 'client-id')
+  vi.stubEnv('VITE_COGNITO_DOMAIN', 'https://auth.example.com')
   vi.stubEnv('VITE_AUTH_REDIRECT_URI', 'https://app.example.com')
   vi.stubEnv('VITE_AUTH_LOGOUT_URI', 'https://app.example.com')
 
@@ -46,9 +55,26 @@ const importConfiguredAuth = async () => {
   return { auth, manager }
 }
 
+const stubBrowserStorage = () => {
+  const store = new Map<string, string>()
+  vi.stubGlobal('window', {
+    localStorage: {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => store.set(key, value),
+      removeItem: (key: string) => store.delete(key),
+    },
+    location: {
+      assign: vi.fn(),
+      origin: 'https://app.example.com',
+    },
+  })
+  return store
+}
+
 afterEach(() => {
   vi.resetModules()
   vi.unstubAllEnvs()
+  vi.unstubAllGlobals()
   authMocks.instances.length = 0
   authMocks.UserManager.mockClear()
   authMocks.WebStorageStateStore.mockClear()
@@ -90,5 +116,31 @@ describe('auth token refresh', () => {
     manager.signinSilent.mockRejectedValue(new Error('refresh token expired'))
 
     await expect(auth.getSignedInUser()).resolves.toBeNull()
+  })
+
+  it('keeps the user signed out after an explicit sign-out', async () => {
+    const store = stubBrowserStorage()
+    const { auth, manager } = await importConfiguredAuth()
+    manager.getUser.mockResolvedValue({ expired: false, id_token: 'still-stored-token' })
+
+    await auth.signOut()
+
+    expect(store.get('traceSignedOut')).toBe('true')
+    await expect(auth.getSignedInUser()).resolves.toBeNull()
+    expect(manager.removeUser).toHaveBeenCalledTimes(2)
+    expect(manager.getUser).not.toHaveBeenCalled()
+  })
+
+  it('clears explicit sign-out when starting a new sign-in', async () => {
+    const store = stubBrowserStorage()
+    store.set('traceSignedOut', 'true')
+    const { auth, manager } = await importConfiguredAuth()
+
+    await auth.signIn()
+
+    expect(store.has('traceSignedOut')).toBe(false)
+    expect(manager.signinRedirect).toHaveBeenCalledWith({
+      extraQueryParams: { identity_provider: 'Google' },
+    })
   })
 })
