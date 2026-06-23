@@ -93,14 +93,14 @@ const handleSubmit = async () => {
 <style scoped>
 .manual-entry {
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.076), rgba(255, 255, 255, 0.028)),
-    rgba(16, 21, 29, 0.78);
+    linear-gradient(135deg, rgba(255, 255, 255, 0.052), rgba(255, 255, 255, 0.022)),
+    rgba(16, 21, 29, 0.84);
   border: 1px solid rgba(255, 255, 255, 0.11);
-  border-radius: 16px;
+  border-radius: 12px;
   padding: 1.25rem 1.5rem;
   margin: 1.5rem 0;
-  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.22);
-  backdrop-filter: blur(14px);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.16);
+  backdrop-filter: blur(8px);
 }
 
 .section-title {
@@ -184,7 +184,7 @@ input[type='datetime-local']:focus {
 }
 
 .submit-btn {
-  background: linear-gradient(135deg, #5ce0c7, #8b7dff);
+  background: linear-gradient(135deg, #65d6c3, #8378e8);
   color: #071018;
   border: none;
   border-radius: 8px;
@@ -194,7 +194,7 @@ input[type='datetime-local']:focus {
   cursor: pointer;
   transition: opacity 0.2s, transform 0.2s;
   white-space: nowrap;
-  box-shadow: 0 14px 26px rgba(92, 224, 199, 0.16);
+  box-shadow: 0 10px 20px rgba(92, 224, 199, 0.1);
 }
 
 .submit-btn:hover:not(:disabled) {

@@ -303,13 +303,13 @@ const updateCategoryStatus = async (category: DisplayCategory, isActive: boolean
 
 .controls.editing {
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.032)),
-    rgba(16, 21, 29, 0.84);
+    linear-gradient(135deg, rgba(255, 255, 255, 0.056), rgba(255, 255, 255, 0.024)),
+    rgba(16, 21, 29, 0.86);
   border: 1px solid rgba(255, 255, 255, 0.11);
-  border-radius: 18px;
+  border-radius: 14px;
   padding: 1.25rem;
-  box-shadow: 0 20px 35px rgba(0, 0, 0, 0.28);
-  backdrop-filter: blur(14px);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(8px);
 }
 
 .controls-header {
@@ -350,23 +350,23 @@ const updateCategoryStatus = async (category: DisplayCategory, isActive: boolean
 .category-tile {
   min-height: 48px;
   color: #fff;
-  font-weight: 750;
+  font-weight: 700;
   padding: 0.85rem 1rem;
   border-radius: 12px;
   box-sizing: border-box;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 14px 28px rgba(0, 0, 0, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 10px 18px rgba(0, 0, 0, 0.16);
 }
 
 .category-button {
   border: none;
-  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.22);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.16);
   transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
 }
 
 .category-button:hover {
-  transform: translateY(-2px);
-  filter: saturate(1.08) brightness(1.04);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.26), 0 18px 36px rgba(0, 0, 0, 0.28);
+  transform: translateY(-1px);
+  filter: saturate(1.04) brightness(1.02);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 12px 22px rgba(0, 0, 0, 0.2);
 }
 
 .edit-categories-button {
@@ -374,8 +374,8 @@ const updateCategoryStatus = async (category: DisplayCategory, isActive: boolean
   align-items: center;
   justify-content: center;
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.095), rgba(255, 255, 255, 0.04)),
-    rgba(15, 20, 28, 0.76);
+    linear-gradient(135deg, rgba(255, 255, 255, 0.064), rgba(255, 255, 255, 0.028)),
+    rgba(15, 20, 28, 0.8);
   border: 1px solid rgba(255, 255, 255, 0.14);
   color: #b1b7c3;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09);
@@ -432,8 +432,8 @@ const updateCategoryStatus = async (category: DisplayCategory, isActive: boolean
 }
 
 .edit-categories-button:hover {
-  background: rgba(92, 224, 199, 0.1);
-  border-color: rgba(92, 224, 199, 0.38);
+  background: rgba(92, 224, 199, 0.065);
+  border-color: rgba(92, 224, 199, 0.28);
   color: #f5f5f5;
 }
 
@@ -464,7 +464,7 @@ const updateCategoryStatus = async (category: DisplayCategory, isActive: boolean
 
 .category-tile.disabled {
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.052), rgba(255, 255, 255, 0.02)),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.036), rgba(255, 255, 255, 0.016)),
     #14171c;
   border: 2px solid var(--category-color);
   color: #c4c8d0;

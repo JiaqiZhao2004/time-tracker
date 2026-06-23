@@ -482,10 +482,10 @@ onUnmounted(() => {
   overflow-x: clip;
   font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   background:
-    radial-gradient(circle at 18% 12%, rgba(78, 201, 176, 0.22), transparent 28rem),
-    radial-gradient(circle at 86% 4%, rgba(255, 196, 87, 0.16), transparent 24rem),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.045) 0 1px, transparent 1px 12px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 84px),
+    radial-gradient(circle at 18% 12%, rgba(78, 201, 176, 0.14), transparent 28rem),
+    radial-gradient(circle at 86% 4%, rgba(255, 196, 87, 0.1), transparent 24rem),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.026) 0 1px, transparent 1px 12px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.022) 0 1px, transparent 1px 84px),
     #0d1117;
   background-attachment: fixed;
   color: #f5f5f5;
@@ -498,8 +498,8 @@ onUnmounted(() => {
   z-index: -1;
   pointer-events: none;
   background:
-    linear-gradient(120deg, rgba(13, 17, 23, 0.1), rgba(13, 17, 23, 0.78) 55%),
-    radial-gradient(circle at 50% 100%, rgba(108, 99, 255, 0.12), transparent 36rem);
+    linear-gradient(120deg, rgba(13, 17, 23, 0.16), rgba(13, 17, 23, 0.84) 55%),
+    radial-gradient(circle at 50% 100%, rgba(108, 99, 255, 0.07), transparent 36rem);
 }
 
 .app {
@@ -515,9 +515,9 @@ onUnmounted(() => {
   min-height: 100svh;
   padding: clamp(1.5rem, 5vh, 3.5rem) 1.5rem;
   display: grid;
-  grid-template-columns: minmax(0, 0.95fr) minmax(320px, 0.75fr);
+  grid-template-columns: minmax(0, 0.9fr) minmax(320px, 0.68fr);
   align-items: center;
-  gap: clamp(2rem, 6vw, 5rem);
+  gap: clamp(2rem, 5vw, 4rem);
 }
 
 .auth-copy {
@@ -533,8 +533,8 @@ onUnmounted(() => {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.07);
   color: #f4d17a;
-  padding: 0.32rem 0.72rem;
-  font-size: 0.78rem;
+  padding: 0.28rem 0.66rem;
+  font-size: 0.74rem;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -542,9 +542,9 @@ onUnmounted(() => {
 
 .auth-screen h1 {
   margin: 0;
-  max-width: 9ch;
-  font-size: clamp(3.2rem, 8vw, 6.5rem);
-  line-height: 0.92;
+  max-width: 10ch;
+  font-size: clamp(2.8rem, 6.7vw, 5.4rem);
+  line-height: 0.98;
   letter-spacing: 0;
 }
 
@@ -552,7 +552,7 @@ onUnmounted(() => {
   margin: 0;
   max-width: 38rem;
   color: #b1b7c3;
-  font-size: 1.08rem;
+  font-size: 1rem;
 }
 
 .auth-actions {
@@ -564,20 +564,20 @@ onUnmounted(() => {
 
 .primary-auth {
   border: 0;
-  background: linear-gradient(135deg, #f7d874, #5ce0c7);
+  background: linear-gradient(135deg, #efd87d, #6fd8c5);
   color: #10151c;
-  padding: 0.78rem 1.05rem;
+  padding: 0.72rem 1rem;
   border-radius: 8px;
   cursor: pointer;
   font-weight: 800;
-  box-shadow: 0 18px 32px rgba(64, 211, 190, 0.18);
+  box-shadow: 0 12px 24px rgba(64, 211, 190, 0.12);
 }
 
 .secondary-auth {
   border: 1px solid rgba(255, 255, 255, 0.16);
   background: rgba(255, 255, 255, 0.06);
   color: #f5f5f5;
-  padding: 0.78rem 1.05rem;
+  padding: 0.72rem 1rem;
   border-radius: 8px;
   cursor: pointer;
   font-weight: 700;
@@ -590,14 +590,14 @@ onUnmounted(() => {
 .product-preview {
   position: relative;
   overflow: hidden;
-  min-height: 360px;
+  min-height: 320px;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 24px;
+  border-radius: 18px;
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.045)),
-    rgba(15, 20, 28, 0.86);
-  box-shadow: 0 34px 90px rgba(0, 0, 0, 0.34);
-  padding: 1.1rem;
+    linear-gradient(135deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.035)),
+    rgba(15, 20, 28, 0.82);
+  box-shadow: 0 22px 56px rgba(0, 0, 0, 0.26);
+  padding: 1rem;
 }
 
 .product-preview::before {
@@ -605,8 +605,8 @@ onUnmounted(() => {
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
   background-size: 28px 28px;
   mask-image: linear-gradient(to bottom, black, transparent 82%);
   pointer-events: none;
@@ -623,7 +623,7 @@ onUnmounted(() => {
 .preview-toolbar {
   display: flex;
   gap: 0.45rem;
-  margin-bottom: 3.5rem;
+  margin-bottom: 2.7rem;
 }
 
 .preview-toolbar span {
@@ -643,7 +643,7 @@ onUnmounted(() => {
 .preview-title-row strong {
   display: block;
   margin-top: 0.25rem;
-  font-size: 2rem;
+  font-size: 1.65rem;
   line-height: 1;
 }
 
@@ -668,9 +668,9 @@ onUnmounted(() => {
 .preview-timeline {
   display: grid;
   grid-template-columns: 0.75fr 1.55fr 1.1fr 0.45fr;
-  height: 54px;
+  height: 46px;
   overflow: hidden;
-  margin: 2rem 0 1.3rem;
+  margin: 1.6rem 0 1.1rem;
   border-radius: 999px;
   background: rgba(5, 8, 13, 0.66);
   padding: 0.35rem;
@@ -704,10 +704,10 @@ onUnmounted(() => {
 }
 
 .preview-grid span {
-  min-height: 62px;
+  min-height: 54px;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.065);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.048);
   display: grid;
   place-items: center;
   color: #e8ebef;
@@ -723,7 +723,7 @@ onUnmounted(() => {
   }
 
   .product-preview {
-    min-height: 300px;
+    min-height: 280px;
   }
 }
 </style>

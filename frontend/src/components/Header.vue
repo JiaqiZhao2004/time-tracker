@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { ref, watch } from 'vue'
 
 const props = defineProps<{
   dayLabel: string
@@ -117,13 +117,13 @@ const guestProfileNotice = 'Guest mode uses a shared profile. Sign in to persona
   align-items: center;
   margin-bottom: 1.5rem;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 22px;
+  border-radius: 16px;
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.095), rgba(255, 255, 255, 0.035)),
-    rgba(14, 18, 25, 0.78);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+    linear-gradient(135deg, rgba(255, 255, 255, 0.064), rgba(255, 255, 255, 0.026)),
+    rgba(14, 18, 25, 0.82);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.2);
   padding: 1.25rem;
-  backdrop-filter: blur(18px);
+  backdrop-filter: blur(10px);
 }
 
 .header .title {
@@ -135,7 +135,7 @@ const guestProfileNotice = 'Guest mode uses a shared profile. Sign in to persona
 
 .header h1 {
   margin: 0;
-  font-size: clamp(2rem, 4vw, 3rem);
+  font-size: clamp(1.8rem, 3.4vw, 2.5rem);
   line-height: 1;
   letter-spacing: 0;
 }
@@ -145,8 +145,8 @@ const guestProfileNotice = 'Guest mode uses a shared profile. Sign in to persona
   border-radius: 999px;
   background: rgba(244, 209, 122, 0.08);
   color: #f4d17a;
-  padding: 0.25rem 0.6rem;
-  font-size: 0.72rem;
+  padding: 0.22rem 0.54rem;
+  font-size: 0.68rem;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -187,8 +187,8 @@ const guestProfileNotice = 'Guest mode uses a shared profile. Sign in to persona
 }
 
 .ghost:hover {
-  border-color: rgba(92, 224, 199, 0.42);
-  background: rgba(92, 224, 199, 0.08);
+  border-color: rgba(92, 224, 199, 0.3);
+  background: rgba(92, 224, 199, 0.055);
 }
 
 .ghost:disabled {

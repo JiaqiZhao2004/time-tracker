@@ -111,13 +111,13 @@ const handleClick = (e: MouseEvent) => {
   position: relative;
   overflow: hidden;
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.084), rgba(255, 255, 255, 0.028)),
-    rgba(15, 20, 30, 0.84);
+    linear-gradient(135deg, rgba(255, 255, 255, 0.058), rgba(255, 255, 255, 0.022)),
+    rgba(15, 20, 30, 0.86);
   border: 1px solid rgba(255, 255, 255, 0.11);
-  border-radius: 18px;
+  border-radius: 14px;
   padding: 1.5rem;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
-  backdrop-filter: blur(14px);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(8px);
 }
 
 .timeline::before {
@@ -125,8 +125,8 @@ const handleClick = (e: MouseEvent) => {
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+    linear-gradient(rgba(255, 255, 255, 0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
   background-size: 32px 32px;
   mask-image: linear-gradient(to bottom, black, transparent 74%);
   pointer-events: none;
@@ -153,12 +153,12 @@ const handleClick = (e: MouseEvent) => {
 
 .timeline-header h2 {
   margin: 0;
-  font-size: 1.28rem;
+  font-size: 1.18rem;
 }
 
 .timeline-bar {
   position: relative;
-  height: 36px;
+  height: 34px;
   overflow: visible;
   cursor: crosshair;
 }
@@ -269,7 +269,7 @@ const handleClick = (e: MouseEvent) => {
   gap: 0.45rem;
   border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.045);
+  background: rgba(255, 255, 255, 0.034);
   padding: 0.34rem 0.6rem;
 }
 
