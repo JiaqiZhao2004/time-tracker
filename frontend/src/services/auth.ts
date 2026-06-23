@@ -1,4 +1,4 @@
-import { UserManager, type User } from 'oidc-client-ts'
+import { UserManager, WebStorageStateStore, type User } from 'oidc-client-ts'
 
 const authority = import.meta.env.VITE_COGNITO_AUTHORITY
 const clientId = import.meta.env.VITE_COGNITO_CLIENT_ID
@@ -17,7 +17,10 @@ const userManager = isAuthConfigured
       response_type: 'code',
       scope: 'openid email profile',
       loadUserInfo: false,
-      automaticSilentRenew: false,
+      automaticSilentRenew: true,
+      ...(typeof window !== 'undefined'
+        ? { userStore: new WebStorageStateStore({ store: window.localStorage }) }
+        : {}),
     })
   : null
 
@@ -45,10 +48,19 @@ export const getSignedInUser = async (): Promise<User | null> => {
   }
 
   const user = await userManager.getUser()
-  if (!user || user.expired) {
+  if (!user) {
     return null
   }
-  return user
+
+  if (!user.expired) {
+    return user
+  }
+
+  try {
+    return await userManager.signinSilent()
+  } catch {
+    return null
+  }
 }
 
 export const getAuthorizationHeader = async (): Promise<Record<string, string>> => {
