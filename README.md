@@ -1,6 +1,6 @@
 # Trace: A Time Observability App
 
-![Trace Demo](demo.png)
+![Trace Demo](demo_v2.png)
 
 Trace helps people see the shape of their time: what they spent it on, when
 patterns repeat, and where they have room to adjust. It is a modern,
