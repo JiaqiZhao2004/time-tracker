@@ -18,10 +18,6 @@ const emit = defineEmits<{
 
 const isEditingProfile = ref(false)
 const draftDisplayName = ref('')
-const appTitle = computed(() => {
-  const name = props.displayName.trim()
-  return name ? `${name}'s Trace` : 'Your Trace'
-})
 
 watch(
   () => props.displayName,
@@ -60,7 +56,7 @@ const guestProfileNotice = 'Guest mode uses a shared profile. Sign in to persona
   <header class="header">
     <div class="title">
       <span class="product-mark">Trace</span>
-      <h1>{{ appTitle }}</h1>
+      <h1>Trace</h1>
       <p>See where your time goes and how your days take shape.</p>
     </div>
     <div class="day-controls">
