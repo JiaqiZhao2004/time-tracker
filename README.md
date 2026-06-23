@@ -98,7 +98,7 @@ provider on the first pass. Set these SAM parameters:
 
 - `GoogleOAuthClientId` and `GoogleOAuthClientSecret` from Google Cloud.
 - `AllowedUserEmails` to a comma-separated allowlist such as
-  `roy@example.com,friend@example.com`, or leave it empty to allow any
+  `roy@example.com,friend@example.com`, or set it to `*` to allow any
   authenticated Google user.
 - `CognitoDomainPrefix` to a globally unique Hosted UI domain prefix.
 - `AuthCallbackUrls` and `AuthLogoutUrls` to the frontend origins, for example

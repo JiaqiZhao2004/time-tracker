@@ -148,11 +148,15 @@ async def log_request(request: Request, call_next: Any) -> Any:
 
 
 def allowed_user_emails() -> set[str]:
-    return {
+    raw_value = os.getenv("ALLOWED_USER_EMAILS", "")
+    emails = {
         email.strip().casefold()
-        for email in os.getenv("ALLOWED_USER_EMAILS", "").split(",")
+        for email in raw_value.split(",")
         if email.strip()
     }
+    if "*" in emails:
+        return set()
+    return emails
 
 
 def normalize_display_name(name: str) -> str:
