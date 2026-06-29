@@ -1,4 +1,4 @@
-# Trace
+# Trace: A Time Observability App
 
 <p align="center">
   <img src="demo_v2.png" alt="Trace app screenshot" width="900">
