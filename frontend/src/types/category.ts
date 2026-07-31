@@ -32,7 +32,7 @@ const fallbackColors = [
 
 const FLAG_EMOJI = '🏁'
 const PRAYER_EMOJI = '🙏'
-const EMOJI_HUE_INCREMENT = 15
+const EMOJI_HUE_INCREMENT = 5
 
 const normalizedName = (name: string): string =>
   name.trim().toLowerCase().replace(/\s+/g, '-')

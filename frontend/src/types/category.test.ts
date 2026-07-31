@@ -29,9 +29,9 @@ describe('category colors', () => {
     const reordered = displayCategories([...categories].reverse())
 
     expect(categories.find((item) => item.categoryId === 'flag-a')?.color).toBe('#00cec9')
-    expect(categories.find((item) => item.categoryId === 'flag-z')?.color).toBe('hsl(194, 100%, 40%)')
+    expect(categories.find((item) => item.categoryId === 'flag-z')?.color).toBe('hsl(184, 100%, 40%)')
     expect(reordered.find((item) => item.categoryId === 'flag-a')?.color).toBe('#00cec9')
-    expect(reordered.find((item) => item.categoryId === 'flag-z')?.color).toBe('hsl(194, 100%, 40%)')
+    expect(reordered.find((item) => item.categoryId === 'flag-z')?.color).toBe('hsl(184, 100%, 40%)')
   })
 
   it('uses the light-purple base color and increments prayer hues', () => {
@@ -41,7 +41,7 @@ describe('category colors', () => {
     ])
 
     expect(categories.find((item) => item.categoryId === 'prayer-a')?.color).toBe('#a29bfe')
-    expect(categories.find((item) => item.categoryId === 'prayer-b')?.color).toBe('hsl(259, 98%, 80%)')
+    expect(categories.find((item) => item.categoryId === 'prayer-b')?.color).toBe('hsl(249, 98%, 80%)')
   })
 
   it('uses flag colors first when both emojis are present', () => {
