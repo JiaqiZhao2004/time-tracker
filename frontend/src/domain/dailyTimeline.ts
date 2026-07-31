@@ -1,5 +1,5 @@
 import type { LocalDay, LocalRange } from './localDay'
-import { displayCategory, type DisplayCategory } from '../types/category'
+import { displayCategories, displayCategory, type DisplayCategory } from '../types/category'
 import type { DisplayEntry } from '../types/entry'
 
 export type TimelineSegment = {
@@ -49,36 +49,41 @@ export const projectTimelineRange = ({
   precedingCategoryId,
   categories,
 }: RangeProjectionInput): TimelineProjection => {
-  const displayCategories = new Map(categories.map((category) => [category.categoryId, category]))
+  const categoryDefinitions = new Map(
+    categories.map(({ categoryId, name, isActive }) => [categoryId, { categoryId, name, isActive }]),
+  )
   const datedEntries = entries
     .map((entry) => ({ ...entry, instant: new Date(entry.timestamp) }))
     .filter((entry) => entry.instant >= range.start && entry.instant < range.end)
     .sort((left, right) => left.instant.getTime() - right.instant.getTime())
 
   for (const entry of datedEntries) {
-    if (displayCategories.has(entry.categoryId)) {
+    if (categoryDefinitions.has(entry.categoryId)) {
       continue
     }
-    displayCategories.set(
+    categoryDefinitions.set(
       entry.categoryId,
-      displayCategory({
+      {
         categoryId: entry.categoryId,
         name: entry.categoryName,
         isActive: false,
-      }),
+      },
     )
   }
 
-  if (precedingCategoryId && !displayCategories.has(precedingCategoryId)) {
-    displayCategories.set(
+  if (precedingCategoryId && !categoryDefinitions.has(precedingCategoryId)) {
+    categoryDefinitions.set(
       precedingCategoryId,
-      displayCategory({
+      {
         categoryId: precedingCategoryId,
         name: precedingCategoryId,
         isActive: false,
-      }),
+      },
     )
   }
+
+  const resolvedCategories = displayCategories([...categoryDefinitions.values()])
+  const displayCategoryMap = new Map(resolvedCategories.map((category) => [category.categoryId, category]))
 
   const segments: TimelineSegment[] = []
   let categoryId = precedingCategoryId
@@ -121,8 +126,11 @@ export const projectTimelineRange = ({
   const summaries = [...elapsedTimes.entries()]
     .map(([summaryCategoryId, elapsedDurationMs]) => ({
       category:
-        displayCategories.get(summaryCategoryId) ??
-        displayCategory({ categoryId: summaryCategoryId, name: summaryCategoryId, isActive: false }),
+        displayCategoryMap.get(summaryCategoryId) ??
+        displayCategory(
+          { categoryId: summaryCategoryId, name: summaryCategoryId, isActive: false },
+          resolvedCategories,
+        ),
       elapsedDurationMs,
       percentage:
         totalElapsedDurationMs === 0 ? 0 : Math.round((elapsedDurationMs / totalElapsedDurationMs) * 100),
@@ -130,7 +138,7 @@ export const projectTimelineRange = ({
     .sort((left, right) => right.elapsedDurationMs - left.elapsedDurationMs)
 
   const usedCategoryIds = new Set(segments.map((segment) => segment.categoryId))
-  const visibleCategories = sortedDisplayCategories(displayCategories).filter(
+  const visibleCategories = sortedDisplayCategories(displayCategoryMap).filter(
     (category) => category.isActive || usedCategoryIds.has(category.categoryId),
   )
 
