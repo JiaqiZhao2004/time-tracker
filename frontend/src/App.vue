@@ -10,7 +10,7 @@ import { resolveDisplayEntries } from './domain/displayEntries'
 import { localDayContaining, localWeekContaining, localWeekDates, shiftLocalDay, todayLocalDay } from './domain/localDay'
 import { completeSignIn, getSignedInUser, isAuthConfigured, signIn, signOut } from './services/auth'
 import { clearGuestMode, enableGuestMode, fetchCategories, fetchEntriesLocal, fetchEntriesLocalWeek, fetchMe, isGuestMode, postEntry, updateMe, type EntriesLocalResponse, type EntriesPeriod, type UserProfile } from './services/api'
-import { displayCategory, type Category, type DisplayCategory } from './types/category'
+import { displayCategories, type Category, type DisplayCategory } from './types/category'
 import type { Entry } from './types/entry'
 
 type HourMark = {
@@ -166,7 +166,7 @@ const loadInitialData = async () => {
       fetchCategories(),
       fetchEntriesLocal(selectedDay.value.timezone, selectedDay.value.date),
     ])
-    categories.value = availableCategories.map(displayCategory)
+    categories.value = displayCategories(availableCategories)
     applyEntries(data)
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'Failed to load data'
@@ -207,13 +207,13 @@ const handleEntryCreated = async (entry: Entry) => {
 }
 
 const handleCategoryChanged = (category: Category) => {
-  const updated = displayCategory(category)
-  categories.value = [
-    ...categories.value.filter((existing) => existing.categoryId !== updated.categoryId),
-    updated,
+  const updatedCategories = [
+    ...categories.value.filter((existing) => existing.categoryId !== category.categoryId),
+    category,
   ].sort(
     (left, right) => left.name.localeCompare(right.name) || left.categoryId.localeCompare(right.categoryId),
   )
+  categories.value = displayCategories(updatedCategories)
 }
 
 const handleTimeClick = (date: Date) => {
